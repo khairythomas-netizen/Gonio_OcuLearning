@@ -71,71 +71,171 @@ function makeClockHours(base, overrides) {
   return hours;
 }
 
-/* ---- Training cases ---- */
+/* ---- Training cases ----
+   Each case names a full en-face disc image and (optionally) a group for the
+   sidebar. clockHours drives the Shaffer/Spaeth readout; `masks` (when present)
+   overrides the default anatomy ring radii for discs whose angle sits
+   differently (e.g. the narrow/closed angles). */
+Gonio.CASE_GROUPS = [
+  "Angle closure — Shaffer grade",
+  "Trabecular meshwork pigmentation",
+  "Other findings"
+];
+
 Gonio.CASES = [
   {
-    id: "normal",
+    id: "normal", group: null, disc: "disc.png",
     name: "Normal open angle",
     description: "A healthy angle: wide open all the way round, mild trabecular pigment, no synechiae.",
     clockHours: makeClockHours(
       { insertion: "cb", contour: "flat", pigment: 1, pasBridge: false, vessels: false, sampaolesi: false }
     )
   },
+
+  /* --- Angle closure, graded --- */
   {
-    id: "pacg",
-    name: "Primary angle closure (narrow angle)",
-    description: "A crowded angle that is narrowest superiorly, with a few clock hours of chronic synechial closure.",
+    id: "closure_g0", group: "Angle closure — Shaffer grade", disc: "closure_g0.png",
+    name: "Grade 0 — Closed",
+    description: "Iridotrabecular apposition all the way round — no angle structures visible (Shaffer 0). The convex iris meets the cornea; high risk of acute closure.",
     clockHours: makeClockHours(
-      { insertion: "tm_p", contour: "convex", pigment: 1, pasBridge: false, vessels: false, sampaolesi: false },
-      {
-        11: { insertion: "schwalbe", contour: "convex", pasBridge: true },
-        12: { insertion: "schwalbe", contour: "convex", pasBridge: true },
-        1:  { insertion: "schwalbe", contour: "convex", pasBridge: false },
-        6:  { insertion: "tm_np", contour: "convex" }
-      }
+      { insertion: "closed", contour: "convex", pigment: 1, pasBridge: false, vessels: false, sampaolesi: false }
     )
   },
   {
-    id: "pds",
+    id: "closure_g1", group: "Angle closure — Shaffer grade", disc: "closure_g1.png",
+    name: "Grade 1 — Very narrow",
+    description: "A very narrow angle — only Schwalbe's line is visible (Shaffer 1). Convex iris; high closure risk.",
+    clockHours: makeClockHours(
+      { insertion: "schwalbe", contour: "convex", pigment: 1, pasBridge: false, vessels: false, sampaolesi: false }
+    )
+  },
+  {
+    id: "closure_g2", group: "Angle closure — Shaffer grade", disc: "closure_g2.png",
+    name: "Grade 2 — Narrow",
+    description: "A narrow angle — visible down to the pigmented trabecular meshwork (Shaffer 2). Scleral spur not seen.",
+    clockHours: makeClockHours(
+      { insertion: "tm_p", contour: "convex", pigment: 1, pasBridge: false, vessels: false, sampaolesi: false }
+    )
+  },
+  {
+    id: "closure_g3", group: "Angle closure — Shaffer grade", disc: "closure_g3.png",
+    name: "Grade 3 — Open",
+    description: "An open angle — scleral spur visible, ciliary body band not seen (Shaffer 3).",
+    clockHours: makeClockHours(
+      { insertion: "spur", contour: "flat", pigment: 1, pasBridge: false, vessels: false, sampaolesi: false }
+    )
+  },
+  {
+    id: "closure_g4", group: "Angle closure — Shaffer grade", disc: "closure_g4.png",
+    name: "Grade 4 — Wide open",
+    description: "A wide-open angle — ciliary body band visible all the way round (Shaffer 4).",
+    clockHours: makeClockHours(
+      { insertion: "cb", contour: "flat", pigment: 1, pasBridge: false, vessels: false, sampaolesi: false }
+    )
+  },
+
+  /* --- Trabecular meshwork pigmentation --- */
+  {
+    id: "pig_mild", group: "Trabecular meshwork pigmentation", disc: "pig_mild.png",
+    name: "Mild pigmentation",
+    description: "Wide-open angle with light, even trabecular pigment (1+).",
+    clockHours: makeClockHours(
+      { insertion: "cb", contour: "flat", pigment: 1, pasBridge: false, vessels: false, sampaolesi: false }
+    )
+  },
+  {
+    id: "pig_moderate", group: "Trabecular meshwork pigmentation", disc: "pig_moderate.png",
+    name: "Moderate pigmentation",
+    description: "Wide-open angle with moderate, even trabecular pigment (2+).",
+    clockHours: makeClockHours(
+      { insertion: "cb", contour: "flat", pigment: 2, pasBridge: false, vessels: false, sampaolesi: false }
+    )
+  },
+  {
+    id: "pig_heavy", group: "Trabecular meshwork pigmentation", disc: "pig_heavy.png",
+    name: "Heavy pigmentation",
+    description: "Wide-open angle with heavy, dense trabecular pigment (3–4+).",
+    clockHours: makeClockHours(
+      { insertion: "cb", contour: "flat", pigment: 4, pasBridge: false, vessels: false, sampaolesi: false }
+    )
+  },
+  {
+    id: "pig_inferior", group: "Trabecular meshwork pigmentation", disc: "pig_inferior.png",
+    name: "Inferior-predominant",
+    description: "Wide-open angle; trabecular pigment is denser inferiorly — the usual gravity-dependent pattern.",
+    clockHours: makeClockHours(
+      { insertion: "cb", contour: "flat", pigment: 2, pasBridge: false, vessels: false, sampaolesi: false },
+      { 5: { pigment: 4 }, 6: { pigment: 4 }, 7: { pigment: 4 } }
+    )
+  },
+  {
+    id: "pig_sectoral", group: "Trabecular meshwork pigmentation", disc: "pig_sectoral.png",
+    name: "Sectoral inferior",
+    description: "Wide-open angle with a localized band of heavy inferior trabecular pigment.",
+    clockHours: makeClockHours(
+      { insertion: "cb", contour: "flat", pigment: 1, pasBridge: false, vessels: false, sampaolesi: false },
+      { 6: { pigment: 4 }, 7: { pigment: 4 } }
+    )
+  },
+
+  /* --- Other findings --- */
+  {
+    id: "angle_recession", group: "Other findings", disc: "angle_recession.png",
+    name: "Angle recession",
+    description: "Post-traumatic angle recession — an abnormally wide, deep recess with a torn, widened ciliary body band.",
+    clockHours: makeClockHours(
+      { insertion: "cb", contour: "flat", pigment: 2, pasBridge: false, vessels: false, sampaolesi: false }
+    )
+  },
+  {
+    id: "pas", group: "Other findings", disc: "pas.png",
+    name: "Peripheral anterior synechiae",
+    description: "Peripheral anterior synechiae bridging the angle over several inferior clock hours, with an open angle elsewhere.",
+    clockHours: makeClockHours(
+      { insertion: "cb", contour: "flat", pigment: 1, pasBridge: false, vessels: false, sampaolesi: false },
+      { 5: { pasBridge: true, insertion: "schwalbe" },
+        6: { pasBridge: true, insertion: "schwalbe" },
+        7: { pasBridge: true, insertion: "schwalbe" } }
+    )
+  },
+  {
+    id: "pigment_dispersion", group: "Other findings", disc: "pigment_dispersion.png",
     name: "Pigment dispersion syndrome",
-    description: "Wide open, concave (myopic) iris configuration with dense, homogeneous trabecular pigmentation and a Sampaolesi line.",
+    description: "Wide open, concave (myopic) iris with dense homogeneous trabecular pigment and a Sampaolesi line.",
     clockHours: makeClockHours(
       { insertion: "cb", contour: "concave", pigment: 4, pasBridge: false, vessels: false, sampaolesi: true }
     )
   },
   {
-    id: "nvg",
-    name: "Neovascular glaucoma",
-    description: "Fine new vessels crossing the angle structures with patchy synechial closure.",
+    id: "pseudoexfoliation", group: "Other findings", disc: "pseudoexfoliation.png",
+    name: "Pseudoexfoliation syndrome",
+    description: "Wide open with patchy trabecular pigment, flecks of pseudoexfoliation material, and a Sampaolesi line.",
     clockHours: makeClockHours(
-      { insertion: "spur", contour: "flat", pigment: 2, pasBridge: false, vessels: true, sampaolesi: false },
-      {
-        3:  { insertion: "schwalbe", pasBridge: true, vessels: true },
-        4:  { insertion: "schwalbe", pasBridge: true, vessels: true },
-        9:  { insertion: "tm_p", vessels: true }
-      }
+      { insertion: "cb", contour: "flat", pigment: 3, pasBridge: false, vessels: false, sampaolesi: true }
     )
   },
   {
-    id: "plateau",
-    name: "Plateau iris syndrome",
-    description: "A uniformly narrow angle with a flat central iris but an abrupt anterior insertion peripherally.",
+    id: "blood_schlemm", group: "Other findings", disc: "blood_schlemm.png",
+    name: "Blood in Schlemm's canal",
+    description: "Blood refluxed into Schlemm's canal — a red line at the posterior trabecular meshwork (low IOP / raised episcleral venous pressure).",
     clockHours: makeClockHours(
-      { insertion: "schwalbe", contour: "flat", pigment: 1, pasBridge: false, vessels: false, sampaolesi: false }
+      { insertion: "cb", contour: "flat", pigment: 1, pasBridge: false, vessels: false, sampaolesi: false }
     )
   },
   {
-    id: "chronic_pas",
-    name: "Chronic angle closure with PAS",
-    description: "Mixed angle grades with prominent peripheral anterior synechiae bridging several clock hours.",
+    id: "cyclodialysis", group: "Other findings", disc: "cyclodialysis.png",
+    name: "Cyclodialysis cleft",
+    description: "A cyclodialysis cleft — a gap between the ciliary body and scleral spur exposing bare white sclera.",
     clockHours: makeClockHours(
-      { insertion: "tm_np", contour: "convex", pigment: 2, pasBridge: false, vessels: false, sampaolesi: false },
-      {
-        2:  { pasBridge: true, insertion: "schwalbe" },
-        3:  { pasBridge: true, insertion: "schwalbe" },
-        7:  { pasBridge: true, insertion: "schwalbe" },
-        8:  { insertion: "tm_p" }
-      }
+      { insertion: "cb", contour: "flat", pigment: 1, pasBridge: false, vessels: false, sampaolesi: false }
+    )
+  },
+  {
+    id: "posterior_embryotoxon", group: "Other findings", disc: "posterior_embryotoxon.png",
+    name: "Posterior embryotoxon",
+    description: "A prominent, anteriorly-displaced Schwalbe's line (posterior embryotoxon / Axenfeld anomaly).",
+    clockHours: makeClockHours(
+      { insertion: "cb", contour: "flat", pigment: 1, pasBridge: false, vessels: false, sampaolesi: false }
     )
   }
 ];

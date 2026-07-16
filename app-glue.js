@@ -30,13 +30,22 @@
     d.addEventListener("click", function () { selectCase(c.id); });
     return d;
   }
-  var normal = Gonio.caseById("normal");
-  var others = Gonio.CASES.filter(function (c) { return c.id !== "normal"; });
-  sidebar.appendChild(sideItem(normal));
-  var grp = document.createElement("div"); grp.className = "side-group";
-  grp.innerHTML = '<div class="side-group-head">Angle closure &amp; glaucoma <span class="badge">' + others.length + "</span></div>";
-  others.forEach(function (c) { grp.appendChild(sideItem(c)); });
-  sidebar.appendChild(grp);
+  // ungrouped cases (Normal) first, then each named group with a count badge
+  Gonio.CASES.filter(function (c) { return !c.group; }).forEach(function (c) {
+    sidebar.appendChild(sideItem(c));
+  });
+  Gonio.CASE_GROUPS.forEach(function (gname) {
+    var members = Gonio.CASES.filter(function (c) { return c.group === gname; });
+    if (!members.length) return;
+    var grp = document.createElement("div"); grp.className = "side-group";
+    var head = document.createElement("div"); head.className = "side-group-head";
+    head.appendChild(document.createTextNode(gname + " "));
+    var badge = document.createElement("span"); badge.className = "badge"; badge.textContent = members.length;
+    head.appendChild(badge);
+    grp.appendChild(head);
+    members.forEach(function (c) { grp.appendChild(sideItem(c)); });
+    sidebar.appendChild(grp);
+  });
 
   function selectCase(id) {
     setCase(id);
@@ -45,9 +54,9 @@
   }
   function setCase(id) {
     currentCase = Gonio.caseById(id);
-    var note = currentCase.id === "normal" ? "" :
-      "  (Imagery for this case is coming; the view shows a normal open angle. Its grading is shown for reference.)";
-    $("case-desc").textContent = currentCase.description + note;
+    V.setDiscImage(currentCase.disc);        // swap to this case's disc
+    V.setStructures(currentCase.masks);      // per-case mask override, or defaults
+    $("case-desc").textContent = currentCase.description;
     updateGrading();
   }
 

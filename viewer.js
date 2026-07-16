@@ -42,6 +42,8 @@
     { name: "Schwalbe's line",     rIn: 0.846, rOut: 0.872 },
     { name: "Cornea",              rIn: 0.878, rOut: 0.99 }
   ];
+  // default ring radii, restored when a case doesn't override the masks
+  var DEFAULT_STRUCTURES = JSON.parse(JSON.stringify(STRUCTURES));
   var GLOW_ALPHA = 0.24;
   var MASKS_ON = true;     // hover glow + floating name label (toggleable)
   var hoverStruct = -1, DEBUG_RINGS = false;
@@ -51,7 +53,7 @@
   function hourLabel(p) { var h = ((Math.round(p) % HOURS) + HOURS) % HOURS; return LABELS[h] + " o'clock"; }
 
   function load() {
-    disc.onload = function () { loaded = true; start(); };
+    disc.onload = function () { loaded = true; };
     disc.src = DISC_SRC + "?v=" + Date.now();
   }
 
@@ -154,7 +156,9 @@
     requestAnimationFrame(tick);
   }
 
-  function start() { resize(); render(); requestAnimationFrame(tick); }
+  // the render loop runs continuously (black until the disc is loaded), so it
+  // is independent of which disc image is currently loading
+  function start() { resize(); requestAnimationFrame(tick); }
 
   /* ---- input: drag + wheel to spin --------------------------------- */
   var dragging = false, lastX = 0;
@@ -234,6 +238,19 @@
     debugRings: function (on) { DEBUG_RINGS = on; },
     setMasks: function (on) { MASKS_ON = !!on; if (!MASKS_ON) hoverLabel.style.opacity = "0"; },
     getMasks: function () { return MASKS_ON; },
+    // swap the displayed disc (per-case pathology imagery)
+    setDiscImage: function (src) {
+      loaded = false; hoverStruct = -1;
+      disc.onload = function () { loaded = true; render(); };
+      disc.src = src + "?v=" + Date.now();
+    },
+    // per-case anatomy ring overrides; pass null/undefined to restore defaults
+    setStructures: function (arr) {
+      var src = (arr && arr.length) ? arr : DEFAULT_STRUCTURES;
+      for (var i = 0; i < STRUCTURES.length; i++) {
+        if (src[i]) { STRUCTURES[i].rIn = src[i].rIn; STRUCTURES[i].rOut = src[i].rOut; }
+      }
+    },
     calibrate: function (on) { calibOn = on; DEBUG_RINGS = on; updateCalib(); },
     getStructures: function () { return JSON.parse(JSON.stringify(STRUCTURES)); },
     setStructureR: function (i, rIn, rOut) { STRUCTURES[i].rIn = rIn; STRUCTURES[i].rOut = rOut; },
@@ -247,4 +264,5 @@
     onHour: function (cb) { hourCb = cb; }
   };
   load();
+  start();   // begin the render loop regardless of disc load timing
 })();
