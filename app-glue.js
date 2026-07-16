@@ -1,0 +1,149 @@
+/* Glue between the seamless disc viewer (viewer.js / window.__gonioViewer) and
+   the teaching UI (case selector, clock dial, Explore / Label / Grading). The
+   view is a single real 360° disc (Normal open angle imagery); the case data
+   in data.js drives the Explore descriptions and the grading readout. */
+
+(function () {
+  var V = window.__gonioViewer;
+  if (!V) { console.error("viewer not ready"); return; }
+
+  // structures in the viewer's radial order (index 0 = innermost)
+  var STRUCTS = [
+    { name: "Iris", desc: "Where the iris inserts (angle recess); its position relative to the landmarks above sets the grade." },
+    { name: "Ciliary body band", desc: "Grey-brown band seen only in wide-open angles, between the scleral spur and the iris root." },
+    { name: "Scleral spur", desc: "The whitest, brightest band in the angle; the posterior meshwork border." },
+    { name: "Trabecular meshwork", desc: "The filtering meshwork overlying Schlemm's canal; pigments posteriorly over time." },
+    { name: "Schwalbe's line", desc: "Termination of Descemet's membrane; the anterior-most angle landmark." },
+    { name: "Cornea", desc: "The clear cornea anterior to (above) Schwalbe's line." }
+  ];
+
+  var $ = function (id) { return document.getElementById(id); };
+  var mode = "explore";
+  var currentCase = Gonio.CASES[0];
+
+  /* ---- pathology sidebar ---- */
+  var sidebar = $("sidebar");
+  function sideItem(c) {
+    var d = document.createElement("div");
+    d.className = "side-item" + (c.id === "normal" ? " active" : "");
+    d.textContent = c.name; d.setAttribute("data-case", c.id);
+    d.addEventListener("click", function () { selectCase(c.id); });
+    return d;
+  }
+  var normal = Gonio.caseById("normal");
+  var others = Gonio.CASES.filter(function (c) { return c.id !== "normal"; });
+  sidebar.appendChild(sideItem(normal));
+  var grp = document.createElement("div"); grp.className = "side-group";
+  grp.innerHTML = '<div class="side-group-head">Angle closure &amp; glaucoma <span class="badge">' + others.length + "</span></div>";
+  others.forEach(function (c) { grp.appendChild(sideItem(c)); });
+  sidebar.appendChild(grp);
+
+  function selectCase(id) {
+    setCase(id);
+    var items = sidebar.querySelectorAll(".side-item");
+    for (var i = 0; i < items.length; i++) items[i].classList.toggle("active", items[i].getAttribute("data-case") === id);
+  }
+  function setCase(id) {
+    currentCase = Gonio.caseById(id);
+    var note = currentCase.id === "normal" ? "" :
+      "  (Imagery for this case is coming; the view shows a normal open angle. Its grading is shown for reference.)";
+    $("case-desc").textContent = currentCase.description + note;
+    updateGrading();
+  }
+
+  /* ---- Explore list ---- */
+  var list = $("explore-list");
+  STRUCTS.forEach(function (s, i) {
+    var li = document.createElement("li");
+    li.innerHTML = '<div class="s-name">' + s.name + '</div><div class="s-desc">' + s.desc + '</div>';
+    li.addEventListener("mouseenter", function () { V.setHover(i); });
+    li.addEventListener("mouseleave", function () { V.setHover(-1); });
+    list.appendChild(li);
+  });
+  function markList(i) {
+    var items = list.children;
+    for (var k = 0; k < items.length; k++) items[k].classList.toggle("hot", k === i);
+  }
+  V.onHover(function (i) { if (mode !== "label") markList(i); });
+
+  /* ---- anatomy-mask toggle ---- */
+  var maskSwitch = $("mask-switch");
+  maskSwitch.addEventListener("change", function () { V.setMasks(maskSwitch.checked); });
+
+  /* ---- clock-hour dial: grab the outer knob and spin ---- */
+  var svg = $("dial-svg"), rotor = $("dial-rotor"), knobNum = $("knob-num");
+  var CX = 100, CY = 100, KR = 78, TWO_PI = Math.PI * 2;   // KR = knob-centre radius (on the ring)
+  var dialDragging = false;
+
+  function dialFromPointer(e) {
+    var rect = svg.getBoundingClientRect(), scale = 200 / rect.width;
+    var x = (e.clientX - rect.left) * scale, y = (e.clientY - rect.top) * scale;
+    var theta = Math.atan2(x - CX, CY - y);      // radians, clockwise from top
+    var p = theta / TWO_PI * 12; if (p < 0) p += 12;
+    V.freeze(p);                                  // hold exactly where the knob is
+  }
+  svg.addEventListener("pointerdown", function (e) {
+    dialDragging = true; svg.setPointerCapture(e.pointerId); dialFromPointer(e); e.preventDefault();
+  });
+  svg.addEventListener("pointermove", function (e) { if (dialDragging) dialFromPointer(e); });
+  function dialEnd() { if (dialDragging) { dialDragging = false; V.unfreeze(); } } // release → settle to nearest hour
+  svg.addEventListener("pointerup", dialEnd);
+  svg.addEventListener("pointercancel", dialEnd);
+
+  // spin the whole rotor (line + glyph + knob) with the view; keep the number upright
+  function syncDial() {
+    var pos = V.getPos(), theta = pos / 12 * TWO_PI;
+    rotor.setAttribute("transform", "rotate(" + (pos / 12 * 360).toFixed(2) + " " + CX + " " + CY + ")");
+    knobNum.setAttribute("x", (CX + KR * Math.sin(theta)).toFixed(2));
+    knobNum.setAttribute("y", (CY - KR * Math.cos(theta)).toFixed(2));
+    knobNum.textContent = V.getHour();
+    requestAnimationFrame(syncDial);
+  }
+  requestAnimationFrame(syncDial);
+
+  V.onHour(function () { updateGrading(); });
+
+  /* ---- mode tabs ---- */
+  var tabs = document.querySelectorAll(".mode-tab");
+  tabs.forEach(function (t) {
+    t.addEventListener("click", function () {
+      tabs.forEach(function (x) { x.classList.remove("active"); });
+      t.classList.add("active");
+      mode = t.getAttribute("data-mode");
+      $("explore-panel").style.display = mode === "explore" ? "" : "none";
+      $("label-panel").style.display = mode === "label" ? "" : "none";
+      $("grading-panel").style.display = mode === "grading" ? "" : "none";
+      if (mode !== "explore") markList(-1);
+      if (mode === "label") newLabelQuestion();
+    });
+  });
+
+  /* ---- Label quiz ---- */
+  var target = -1, score = 0, asked = 0;
+  function newLabelQuestion() {
+    target = Math.floor(Math.random() * STRUCTS.length);
+    $("label-prompt").innerHTML = "Find and click: <b>" + STRUCTS[target].name + "</b>";
+    $("label-feedback").textContent = ""; $("label-feedback").className = "feedback";
+  }
+  $("label-next").addEventListener("click", newLabelQuestion);
+  $("stage").addEventListener("click", function () {
+    if (mode !== "label" || target < 0) return;
+    var hit = V.getHover(), fb = $("label-feedback");
+    asked++;
+    if (hit === target) { score++; fb.textContent = "Correct — " + STRUCTS[target].name + "."; fb.className = "feedback ok"; }
+    else { fb.textContent = hit >= 0 ? "That's the " + STRUCTS[hit].name + ". Try again." : "Nothing there — aim at the structure."; fb.className = "feedback no"; }
+    $("label-score").textContent = "Score: " + score + " / " + asked;
+    if (hit === target) setTimeout(newLabelQuestion, 900);
+  });
+
+  /* ---- Grading readout ---- */
+  function updateGrading() {
+    var h = V.getHour(), hd = currentCase.clockHours[h];
+    var g = Gonio.shaffer(hd), sp = Gonio.spaethNotation(hd);
+    $("grading-info").innerHTML =
+      '<p><b>Shaffer grade ' + g.grade + '</b> — ' + g.label + ' (' + g.range + ')<br>' + g.note + '</p>' +
+      '<p>Spaeth: <b>' + sp + '</b></p>';
+  }
+
+  setCase("normal");
+})();

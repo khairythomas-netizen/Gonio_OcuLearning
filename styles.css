@@ -1,0 +1,155 @@
+/* Gonioscopy Simulator — themed to match the OcuLearning design language:
+   warm cream background, deep-navy secondary nav, serif headings over a clean
+   sans body, thin-outline pill buttons, subtle count badges. */
+
+:root {
+  --cream: #f4f1ea;        /* page background */
+  --surface: #ffffff;      /* cards */
+  --surface-2: #efeae0;    /* subtle fills */
+  --navy: #1b3a5c;         /* deep navy accent / sub-nav */
+  --navy-hi: #24507e;
+  --ink: #2c2c2c;          /* body text */
+  --muted: #6c6c6c;
+  --line: rgba(27, 58, 92, 0.16);
+  --serif: "Spectral", Georgia, "Iowan Old Style", "Times New Roman", serif;
+  --sans: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+}
+
+* { box-sizing: border-box; }
+body { margin: 0; background: var(--cream); color: var(--ink); font-family: var(--sans);
+  line-height: 1.6; -webkit-font-smoothing: antialiased; }
+
+h1, h2, h3 { font-family: var(--serif); color: var(--navy); font-weight: 600; margin: 0; }
+
+/* ---- header ---- */
+header { padding: 26px 34px 0; }
+header h1 { font-size: 34px; letter-spacing: 0.2px; }
+header p { color: var(--muted); font-size: 15px; margin: 5px 0 0; }
+
+/* ---- navy secondary nav holding the mode tabs ---- */
+.subnav { background: var(--navy); margin-top: 18px; padding: 0 34px; }
+.mode-tabs { display: flex; gap: 4px; max-width: 1280px; }
+.mode-tab { padding: 15px 24px; color: rgba(255, 255, 255, 0.74); font-size: 15px; font-weight: 500;
+  cursor: pointer; border-bottom: 3px solid transparent; user-select: none; transition: color .15s; }
+.mode-tab:hover { color: #fff; }
+.mode-tab.active { color: #fff; border-bottom-color: #fff; }
+
+/* ---- layout ---- */
+main { display: flex; gap: 30px; padding: 28px 34px 48px; align-items: flex-start;
+  max-width: 1280px; flex-wrap: wrap; }
+.left-col { flex: 1 1 600px; min-width: 320px; }
+.right-col { flex: 1 1 330px; min-width: 290px;
+  background: var(--surface); border: 0.5px solid var(--line); border-radius: 14px; padding: 20px 22px; }
+
+/* ---- case selector row ---- */
+.controls-row { display: flex; align-items: center; gap: 10px; margin-bottom: 8px; }
+.controls-row label { font-weight: 600; color: var(--navy); }
+select { font-family: var(--sans); font-size: 14px; padding: 8px 12px; border: 1px solid var(--line);
+  border-radius: 9px; background: var(--surface); color: var(--ink); cursor: pointer; }
+#case-desc { color: var(--muted); font-size: 14px; margin: 0 0 14px; }
+
+/* ---- stage header: title + mask toggle ---- */
+.stage-head { display: flex; align-items: center; justify-content: space-between; gap: 16px; }
+
+/* iOS-style toggle switch for the anatomy masks */
+.mask-toggle { display: inline-flex; align-items: center; gap: 10px; cursor: pointer;
+  font-size: 14px; color: var(--ink); user-select: none; }
+.mask-toggle input { position: absolute; opacity: 0; width: 0; height: 0; }
+.mask-toggle .switch { position: relative; width: 42px; height: 24px; border-radius: 24px;
+  background: #c8c8c8; transition: background .16s; flex: none; }
+.mask-toggle .switch::after { content: ""; position: absolute; top: 2px; left: 2px;
+  width: 20px; height: 20px; border-radius: 50%; background: #fff;
+  box-shadow: 0 1px 2px rgba(0,0,0,.3); transition: transform .16s; }
+.mask-toggle input:checked + .switch { background: var(--navy); }
+.mask-toggle input:checked + .switch::after { transform: translateX(18px); }
+
+/* ---- clock-hour dial ---- */
+.stage-controls { display: flex; flex-direction: column; align-items: center; gap: 8px; margin-top: 18px; }
+.dial-wrap { width: 180px; height: 180px; touch-action: none; }
+#dial-svg { width: 100%; height: 100%; cursor: grab; display: block; }
+#dial-svg:active { cursor: grabbing; }
+.dial-ring { fill: none; stroke: var(--navy); stroke-width: 1.5; }
+#dial-indicator { stroke: var(--navy); stroke-width: 2; }
+.knob-bg { fill: #fff; stroke: var(--navy); stroke-width: 2; }
+#knob-num { font-family: var(--sans); font-size: 17px; font-weight: 600; fill: var(--navy);
+  text-anchor: middle; dominant-baseline: central; pointer-events: none; }
+.dial-caption { font-size: 12px; color: var(--muted); }
+
+button { font-family: var(--sans); font-size: 14px; padding: 8px 16px; border-radius: 9px;
+  border: 1px solid var(--line); background: var(--surface); color: var(--navy); cursor: pointer;
+  transition: background .15s, border-color .15s; }
+button:hover { background: var(--surface-2); border-color: var(--navy); }
+button:active { transform: scale(0.98); }
+
+/* ---- explore structure list ---- */
+.hint-text { font-size: 13px; color: var(--muted); margin: 0 0 12px; }
+#explore-list { list-style: none; padding: 0; margin: 0; }
+#explore-list li { padding: 10px 12px; border-radius: 10px; border: 0.5px solid var(--line);
+  margin-bottom: 8px; transition: background .12s, border-color .12s; }
+#explore-list li.hot { background: rgba(214, 150, 60, 0.15); border-color: rgba(214, 150, 60, 0.55); }
+#explore-list .s-name { font-weight: 600; color: var(--navy); }
+#explore-list .s-desc { font-size: 13px; color: var(--muted); margin-top: 2px; }
+
+/* ---- quiz panels ---- */
+#label-prompt { font-size: 16px; }
+#label-prompt b, #grading-info b { color: var(--navy); }
+.feedback { min-height: 22px; font-weight: 600; margin: 10px 0; }
+.feedback.ok { color: #1a7f4b; }
+.feedback.no { color: #b23b3b; }
+.score-line { color: var(--muted); font-size: 14px; }
+#grading-info p { margin: 6px 0; font-size: 14px; }
+#grading-info b { font-size: 15px; }
+
+/* ============ OcuLearning top nav ============ */
+.topnav { display: flex; align-items: stretch; justify-content: space-between; gap: 20px;
+  background: var(--cream); padding: 0 28px; height: 66px; border-bottom: 1px solid rgba(0,0,0,0.06); }
+.brand { display: flex; align-items: center; gap: 9px; }
+.logo-eye { width: 40px; height: 24px; }
+.brand-name { font-family: var(--serif); font-weight: 700; font-size: 23px; color: var(--navy); letter-spacing: .2px; }
+
+.topnav-links { display: flex; align-items: stretch; gap: 4px; flex: 1; justify-content: center; }
+.topnav-links a { display: flex; align-items: center; padding: 0 20px; font-size: 15px; color: #3a3a3a;
+  cursor: pointer; text-decoration: none; border-radius: 10px 10px 0 0; align-self: flex-end; height: 52px; }
+.topnav-links a:hover { color: var(--navy); }
+.topnav-links a.active { background: var(--navy); color: #fff; font-weight: 500; }
+
+.topnav-right { display: flex; align-items: center; gap: 12px; }
+.user-chip { display: flex; align-items: center; gap: 8px; padding: 6px 12px 6px 6px; border-radius: 22px;
+  border: 1px solid var(--line); background: var(--surface); font-size: 14px; color: var(--ink); }
+.avatar { width: 26px; height: 26px; border-radius: 50%; background: var(--navy); color: #fff;
+  display: flex; align-items: center; justify-content: center; font-size: 11px; font-weight: 600; }
+.chev { color: var(--muted); font-size: 11px; }
+.lang { display: flex; border: 1px solid var(--line); border-radius: 8px; overflow: hidden; font-size: 13px; }
+.lang span { padding: 5px 9px; color: var(--muted); }
+.lang .on { background: var(--navy); color: #fff; }
+.icon-btn { width: 34px; height: 34px; border-radius: 50%; border: 1px solid var(--line);
+  background: var(--surface); font-size: 15px; cursor: pointer; padding: 0; }
+
+/* subnav sits flush under the nav, its active tab aligned with the navy top tab */
+.subnav { margin-top: 0; }
+
+/* ============ app layout: sidebar | stage | panel ============ */
+.app-main { display: flex; gap: 0; align-items: stretch; max-width: none; padding: 0; }
+.sidebar { width: 270px; flex: none; background: var(--surface); border-right: 1px solid var(--line);
+  padding: 16px 14px; min-height: calc(100vh - 66px - 51px); }
+.side-item { padding: 9px 12px; border-radius: 9px; cursor: pointer; font-size: 14px; color: var(--ink);
+  margin-bottom: 3px; }
+.side-item:hover { background: var(--surface-2); }
+.side-item.active { background: #e4edf6; color: var(--navy); font-weight: 600; }
+.side-group { margin-top: 14px; }
+.side-group-head { display: flex; align-items: center; justify-content: space-between; padding: 6px 12px;
+  font-weight: 700; color: var(--navy); font-size: 14px; }
+.badge { background: var(--surface-2); color: var(--muted); border-radius: 20px; font-size: 11px;
+  font-weight: 600; padding: 1px 9px; }
+
+.stage-col { flex: 1 1 560px; min-width: 320px; padding: 24px 30px; }
+.page-title { font-size: 32px; margin-bottom: 10px; }
+.panel-col { width: 340px; flex: none; background: var(--surface); border-left: 1px solid var(--line);
+  padding: 22px 22px; }
+
+@media (max-width: 1100px) {
+  .topnav-links { display: none; }
+  .app-main { flex-wrap: wrap; }
+  .sidebar, .panel-col { width: 100%; border: none; border-bottom: 1px solid var(--line); min-height: 0; }
+  .stage-col { flex: 1 1 100%; }
+}

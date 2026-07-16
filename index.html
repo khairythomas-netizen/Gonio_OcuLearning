@@ -1,0 +1,138 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Gonioscopy Simulator | OcuLearning</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Spectral:wght@500;600;700&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="styles.css">
+<style>
+  .stage { position: relative; width: 100%; height: 560px; background: #000;
+    border-radius: 12px; overflow: hidden; cursor: grab; touch-action: none; }
+  .stage.dragging { cursor: grabbing; }
+  .stage canvas { display: block; width: 100%; height: 100%; }
+  #vignette { position: absolute; inset: 0; pointer-events: none;
+    background: radial-gradient(ellipse 72% 78% at 50% 50%, rgba(0,0,0,0) 54%,
+      rgba(0,0,0,0.55) 76%, rgba(0,0,0,0.96) 92%, #000 100%); }
+  #hud { position: absolute; left: 0; right: 0; bottom: 0; padding: 14px 18px 16px; pointer-events: none;
+    background: linear-gradient(to top, rgba(0,0,0,0.5), transparent); }
+  #label { color: #f2f2f2; font-size: 14px; font-weight: 500; text-align: center; margin-bottom: 8px; }
+  #track { position: relative; height: 4px; border-radius: 2px; background: rgba(255,255,255,0.18);
+    max-width: 420px; margin: 0 auto; }
+  #fill { position: absolute; left: 0; top: 0; height: 100%; border-radius: 2px; background: rgba(255,255,255,0.85); width: 0; }
+  #hint { color: rgba(255,255,255,0.5); font-size: 11px; text-align: center; margin-top: 8px; }
+  #hoverlabel { position: fixed; transform: translate(14px, -50%); pointer-events: none; padding: 4px 9px;
+    border-radius: 6px; font-size: 12px; font-weight: 500; color: #fff; background: rgba(20,20,22,0.82);
+    border: 0.5px solid rgba(255,255,255,0.18); opacity: 0; transition: opacity .12s; white-space: nowrap; z-index: 5; }
+  #calib { display: none; }
+</style>
+</head>
+<body>
+
+<!-- ===== OcuLearning top nav ===== -->
+<nav class="topnav">
+  <div class="brand">
+    <svg class="logo-eye" viewBox="0 0 40 24" aria-hidden="true">
+      <path d="M2 12 C 8 3, 32 3, 38 12 C 32 21, 8 21, 2 12 Z" fill="none" stroke="#1b3a5c" stroke-width="2"/>
+      <circle cx="20" cy="12" r="6.5" fill="#5aa0c8"/>
+      <circle cx="20" cy="12" r="3" fill="#12233a"/>
+      <circle cx="17.6" cy="9.8" r="1.1" fill="#fff"/>
+    </svg>
+    <span class="brand-name">Oculearning</span>
+  </div>
+  <div class="topnav-links">
+    <a>Explorer</a>
+    <a>Neuro-Ophtho</a>
+    <a>Case Quiz</a>
+    <a>Algorithms</a>
+    <a class="active">Anatomy</a>
+    <a>Flashcards</a>
+    <a>About</a>
+  </div>
+  <div class="topnav-right">
+    <div class="user-chip"><span class="avatar">TK</span> Thomas <span class="chev">▾</span></div>
+    <div class="lang"><span class="on">EN</span><span>FR</span></div>
+    <button class="icon-btn" title="Toggle theme">☾</button>
+  </div>
+</nav>
+
+<!-- ===== navy sub-nav: gonioscopy modes ===== -->
+<div class="subnav">
+  <div class="mode-tabs">
+    <div class="mode-tab active" data-mode="explore">Explore</div>
+    <div class="mode-tab" data-mode="label">Label quiz</div>
+    <div class="mode-tab" data-mode="grading">Grading</div>
+  </div>
+</div>
+
+<main class="app-main">
+  <!-- left sidebar: pathologies -->
+  <aside class="sidebar" id="sidebar"></aside>
+
+  <!-- centre: the angle view -->
+  <section class="stage-col">
+    <div class="stage-head">
+      <h1 class="page-title">Gonioscopy</h1>
+      <label class="mask-toggle">
+        <input type="checkbox" id="mask-switch" checked>
+        <span class="switch"></span>
+        <span>Anatomy masks</span>
+      </label>
+    </div>
+    <p id="case-desc"></p>
+    <div class="stage" id="stage">
+      <canvas id="c"></canvas>
+      <div id="vignette"></div>
+      <div id="hoverlabel"></div>
+      <div id="calib"></div>
+      <div id="hud">
+        <div id="label">—</div>
+        <div id="track"><div id="fill"></div></div>
+        <div id="hint">drag or scroll to travel around the angle</div>
+      </div>
+    </div>
+    <div class="stage-controls">
+      <div class="dial-wrap">
+        <svg id="dial-svg" viewBox="0 0 200 200" aria-label="Clock-hour dial">
+          <circle class="dial-ring" cx="100" cy="100" r="78"/>
+          <!-- rotor: reel image + indicator line + knob all spin together about the centre -->
+          <g id="dial-rotor">
+            <image href="reel.png" x="46" y="46" width="108" height="108"/>
+            <!-- indicator: knob → semi-circle (bottom of the reel), drawn on top -->
+            <line id="dial-indicator" x1="100" y1="24" x2="100" y2="126"/>
+            <circle id="knob-c" class="knob-bg" cx="100" cy="24" r="13"/>
+          </g>
+          <text id="knob-num" x="100" y="24">12</text>
+        </svg>
+      </div>
+      <div class="dial-caption">Grab the knob and spin to travel around the angle</div>
+    </div>
+  </section>
+
+  <!-- right: mode panel -->
+  <section class="panel-col">
+    <div id="explore-panel">
+      <p class="hint-text">Hover a structure — in the view or in this list — to highlight it.</p>
+      <ul id="explore-list"></ul>
+    </div>
+    <div id="label-panel" style="display:none;">
+      <p id="label-prompt"></p>
+      <p class="hint-text">Move over the structure in the view and click it.</p>
+      <div id="label-feedback" class="feedback"></div>
+      <div id="label-score" class="score-line"></div>
+      <button id="label-next">New structure</button>
+    </div>
+    <div id="grading-panel" style="display:none;">
+      <p class="hint-text">Shaffer grade + Spaeth notation for the selected case at the current clock hour.</p>
+      <div id="grading-info"></div>
+    </div>
+  </section>
+</main>
+
+<script src="data.js"></script>
+<script src="viewer.js"></script>
+<script src="app-glue.js"></script>
+</body>
+</html>
