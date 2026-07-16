@@ -87,6 +87,8 @@ button:active { transform: scale(0.98); }
 #explore-list li { padding: 10px 12px; border-radius: 10px; border: 0.5px solid var(--line);
   margin-bottom: 8px; transition: background .12s, border-color .12s; }
 #explore-list li.hot { background: rgba(214, 150, 60, 0.15); border-color: rgba(214, 150, 60, 0.55); }
+#explore-list li.off { opacity: 0.4; pointer-events: none; }
+#explore-list li.off .s-name::after { content: " — not visible in this angle"; font-weight: 400; font-style: italic; color: var(--muted); }
 #explore-list .s-name { font-weight: 600; color: var(--navy); }
 #explore-list .s-desc { font-size: 13px; color: var(--muted); margin-top: 2px; }
 

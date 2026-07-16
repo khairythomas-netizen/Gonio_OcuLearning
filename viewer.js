@@ -44,7 +44,25 @@
   ];
   // default ring radii, restored when a case doesn't override the masks
   var DEFAULT_STRUCTURES = JSON.parse(JSON.stringify(STRUCTURES));
+  // which structures are currently present (some pathologies hide deeper layers)
+  var activeMask = STRUCTURES.map(function () { return true; });
   var GLOW_ALPHA = 0.24;
+
+  /* Reveal structures only down to `deepest` (index of the deepest visible
+     structure, 1=ciliary body band … 5=cornea-only / closed). Anything more
+     posterior than that is covered by apposed iris, so it is hidden and the
+     iris ring is extended outward to fill the covered zone. Index 0 (iris) and
+     the cornea are always present. */
+  function setDeepest(deepest) {
+    deepest = Math.max(1, Math.min(STRUCTURES.length - 1, deepest));
+    for (var i = 0; i < STRUCTURES.length; i++) {
+      STRUCTURES[i].rIn = DEFAULT_STRUCTURES[i].rIn;
+      STRUCTURES[i].rOut = DEFAULT_STRUCTURES[i].rOut;
+      activeMask[i] = (i === 0) || (i >= deepest);
+    }
+    STRUCTURES[0].rOut = DEFAULT_STRUCTURES[deepest].rIn;   // iris fills the covered zone
+    if (hoverStruct >= 0 && !activeMask[hoverStruct]) hoverStruct = -1;
+  }
   var MASKS_ON = true;     // hover glow + floating name label (toggleable)
   var hoverStruct = -1, DEBUG_RINGS = false;
   var hoverCb = null, hourCb = null, lastHour = -1;
@@ -107,13 +125,15 @@
     var g = geom(), r = Math.hypot(cx - g.px, cy - g.py) / g.unit;
     // iterate outermost→innermost so that where bands overlap the more
     // anterior structure (e.g. Schwalbe's line over TM) wins the hover
-    for (var i = STRUCTURES.length - 1; i >= 0; i--)
+    for (var i = STRUCTURES.length - 1; i >= 0; i--) {
+      if (!activeMask[i]) continue;                 // hidden in this pathology
       if (r >= STRUCTURES[i].rIn && r < STRUCTURES[i].rOut) return i;
+    }
     return -1;
   }
 
   function drawGlow(si) {
-    if (si < 0) return;
+    if (si < 0 || !activeMask[si]) return;
     var g = geom(), s = STRUCTURES[si];
     var rIn = s.rIn * g.unit, rOut = s.rOut * g.unit;
     ctx.save();
@@ -251,6 +271,9 @@
         if (src[i]) { STRUCTURES[i].rIn = src[i].rIn; STRUCTURES[i].rOut = src[i].rOut; }
       }
     },
+    // reveal structures only down to the deepest visible one (see setDeepest)
+    setDeepest: function (d) { setDeepest(d); },
+    isActive: function (i) { return !!activeMask[i]; },
     calibrate: function (on) { calibOn = on; DEBUG_RINGS = on; updateCalib(); },
     getStructures: function () { return JSON.parse(JSON.stringify(STRUCTURES)); },
     setStructureR: function (i, rIn, rOut) { STRUCTURES[i].rIn = rIn; STRUCTURES[i].rOut = rOut; },

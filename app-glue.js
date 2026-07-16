@@ -17,6 +17,12 @@
     { name: "Cornea", desc: "The clear cornea anterior to (above) Schwalbe's line." }
   ];
 
+  // deepest visible structure (viewer index) for a given clock-hour's iris
+  // insertion; everything more posterior is covered by apposed iris. Cornea (5)
+  // means a closed angle where no angle structure is seen.
+  var DEEPEST_BY_INSERTION = { cb: 1, spur: 2, tm_p: 3, tm_np: 3, schwalbe: 4, closed: 5 };
+  function deepestFor(hd) { return hd.pasBridge ? 5 : (DEEPEST_BY_INSERTION[hd.insertion] || 1); }
+
   var $ = function (id) { return document.getElementById(id); };
   var mode = "explore";
   var currentCase = Gonio.CASES[0];
@@ -55,7 +61,7 @@
   function setCase(id) {
     currentCase = Gonio.caseById(id);
     V.setDiscImage(currentCase.disc);        // swap to this case's disc
-    V.setStructures(currentCase.masks);      // per-case mask override, or defaults
+    applyVisibility();                       // show only the layers present in this case
     $("case-desc").textContent = currentCase.description;
     updateGrading();
   }
@@ -74,6 +80,17 @@
     for (var k = 0; k < items.length; k++) items[k].classList.toggle("hot", k === i);
   }
   V.onHover(function (i) { if (mode !== "label") markList(i); });
+
+  /* apply which anatomy layers are present for the current case + clock hour:
+     hide the covered posterior structures on the disc and grey them in the list */
+  function applyVisibility() {
+    var deepest = deepestFor(currentCase.clockHours[V.getHour()]);
+    V.setDeepest(deepest);
+    var items = list.children;
+    for (var i = 0; i < items.length; i++) {
+      items[i].classList.toggle("off", !(i === 0 || i >= deepest));
+    }
+  }
 
   /* ---- anatomy-mask toggle ---- */
   var maskSwitch = $("mask-switch");
@@ -110,7 +127,7 @@
   }
   requestAnimationFrame(syncDial);
 
-  V.onHour(function () { updateGrading(); });
+  V.onHour(function () { applyVisibility(); updateGrading(); });
 
   /* ---- mode tabs ---- */
   var tabs = document.querySelectorAll(".mode-tab");
@@ -130,7 +147,11 @@
   /* ---- Label quiz ---- */
   var target = -1, score = 0, asked = 0;
   function newLabelQuestion() {
-    target = Math.floor(Math.random() * STRUCTS.length);
+    // only ask for structures actually visible in this case at the current hour
+    var deepest = deepestFor(currentCase.clockHours[V.getHour()]);
+    var pool = [];
+    for (var i = 0; i < STRUCTS.length; i++) if (i === 0 || i >= deepest) pool.push(i);
+    target = pool[Math.floor(Math.random() * pool.length)];
     $("label-prompt").innerHTML = "Find and click: <b>" + STRUCTS[target].name + "</b>";
     $("label-feedback").textContent = ""; $("label-feedback").className = "feedback";
   }
