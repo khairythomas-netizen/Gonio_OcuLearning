@@ -33,6 +33,13 @@
   function discScale() { return DISC_ZOOM * stage.clientHeight / 1000; }
   var DISC_DIR = 1;        // spin direction
 
+  // goniolens tilt: -1 (away) … 0 (straight on) … +1 (tilted toward the angle)
+  var tilt = 0, TILT_REACH = 0.16;   // fraction of stage height of extra reach
+  var tiltCb = null;
+
+  // sectoral findings drawn in eye-space (fixed to the clock, not to the view)
+  var SECTORS = [];
+
   // structures as concentric bands, radius in fractions of the disc half-width
   var STRUCTURES = [
     { name: "Iris",                rIn: 0.54, rOut: 0.72 },
@@ -82,42 +89,54 @@
     ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
   }
 
-  // geometry: pupil (disc centre) canvas position + canvas px per disc-half-width
+  /* geometry: pupil (disc centre) canvas position + canvas px per disc-half-width.
+     The eye is FIXED in space; travelling around the clock moves the viewing
+     position around it, so the pupil orbits the viewport centre while the disc
+     itself keeps a constant orientation. That way each clock hour really shows
+     its own sector of tissue (essential for sectoral findings such as PAS)
+     rather than the same sector spinning on itself.
+     Tilt models tilting the goniolens toward the angle being viewed, which lets
+     the examiner see farther posteriorly into the recess (Bayer & Spaeth, Ch. 3
+     "Advanced Maneuvers"): it shortens the pupil→viewport distance so deeper
+     structures come into frame. */
   function geom() {
     var cw = stage.clientWidth, ch = stage.clientHeight;
     var theta = pos / HOURS * TWO_PI * DISC_DIR;
-    var Rorbit = (PUPIL_CY - ORBIT_CY) * ch;   // pivot → disc-centre distance
+    var Rorbit = (PUPIL_CY - ORBIT_CY) * ch - tilt * TILT_REACH * ch;
     // the disc centre (pupil) orbits the pivot as the view turns
     var px = cw / 2 - Rorbit * Math.sin(theta);
     var py = ORBIT_CY * ch + Rorbit * Math.cos(theta);
-    return { cw: cw, ch: ch, px: px, py: py, unit: (disc.width / 2) * discScale() };
+    return { cw: cw, ch: ch, px: px, py: py, theta: theta,
+             unit: (disc.width / 2) * discScale() };
   }
 
   function render() {
     var cw = stage.clientWidth, ch = stage.clientHeight;
     ctx.globalAlpha = 1; ctx.fillStyle = "#000"; ctx.fillRect(0, 0, cw, ch);
+
+    // clock bookkeeping happens even while a disc is still loading, so the
+    // grading and visibility readouts never miss an hour change during a swap
+    labelEl.textContent = hourLabel(pos);
+    var frac0 = ((pos % HOURS) + HOURS) % HOURS;
+    fillEl.style.width = (frac0 / HOURS * 100).toFixed(1) + "%";
+    var hNow = ((Math.round(pos) % HOURS) + HOURS) % HOURS; hNow = hNow === 0 ? 12 : hNow;
+    if (hNow !== lastHour) { lastHour = hNow; if (hourCb) hourCb(hNow); }
+
     if (!loaded) return;
 
+    var g = geom();
     ctx.save();
-    // orbit the whole disc about the pivot so the view fully turns: at 12 the
-    // angle is up, at 3 it's on the right, at 6 it's at the bottom, ...
-    ctx.translate(cw / 2, ORBIT_CY * ch);
-    ctx.rotate(pos / HOURS * TWO_PI * DISC_DIR);
-    ctx.translate(0, (PUPIL_CY - ORBIT_CY) * ch);
+    // draw the disc unrotated about the orbiting pupil, so the sector on screen
+    // is the sector we have actually travelled to
+    ctx.translate(g.px, g.py);
     var sc = discScale();
     ctx.scale(sc, sc);
     ctx.drawImage(disc, -disc.width / 2, -disc.height / 2);
     ctx.restore();
 
+    drawSectors(g);
     if (MASKS_ON) drawGlow(hoverStruct);
     if (DEBUG_RINGS) drawDebugRings();
-
-    labelEl.textContent = hourLabel(pos);
-    var frac = ((pos % HOURS) + HOURS) % HOURS;
-    fillEl.style.width = (frac / HOURS * 100).toFixed(1) + "%";
-
-    var h = ((Math.round(pos) % HOURS) + HOURS) % HOURS; h = h === 0 ? 12 : h;
-    if (h !== lastHour) { lastHour = h; if (hourCb) hourCb(h); }
   }
 
   /* ---- hover / glow — concentric rings about the pupil -------------- */
@@ -146,6 +165,84 @@
     ctx.beginPath(); ctx.arc(g.px, g.py, rOut, 0, TWO_PI); ctx.fill();
     ctx.restore();
     ctx.globalCompositeOperation = "source-over";
+  }
+
+  /* ---- sectoral findings, drawn in eye-space -----------------------
+     Angles are absolute clock positions, so a finding stays put on the eye as
+     you travel round: PAS sit superiorly, pigment settles inferiorly, etc. */
+  function sectorPath(g, rIn, rOut, h0, h1) {
+    var a0 = h0 / HOURS * TWO_PI - Math.PI / 2;
+    var a1 = h1 / HOURS * TWO_PI - Math.PI / 2;
+    if (a1 <= a0) a1 += TWO_PI;
+    ctx.beginPath();
+    ctx.arc(g.px, g.py, rOut * g.unit, a0, a1);
+    ctx.arc(g.px, g.py, rIn * g.unit, a1, a0, true);
+    ctx.closePath();
+  }
+
+  // sectors are painted to an offscreen layer and composited through a blur, so
+  // their edges fade into the surrounding tissue instead of ending in a hard cut
+  var secCanvas = document.createElement("canvas");
+  var sctx = secCanvas.getContext("2d");
+
+  function drawSectors(g) {
+    if (!SECTORS.length) return;
+    var dpr = Math.min(window.devicePixelRatio || 1, 2);
+    if (secCanvas.width !== canvas.width || secCanvas.height !== canvas.height) {
+      secCanvas.width = canvas.width; secCanvas.height = canvas.height;
+    }
+    sctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+    sctx.clearRect(0, 0, g.cw, g.ch);
+    var keep = ctx; ctx = sctx;            // paint the wedges offscreen
+    paintSectors(g);
+    ctx = keep;
+    ctx.save();
+    ctx.filter = "blur(" + Math.max(3, g.ch * 0.016).toFixed(1) + "px)";
+    ctx.drawImage(secCanvas, 0, 0, g.cw, g.ch);
+    ctx.restore();
+  }
+
+  function paintSectors(g) {
+    for (var i = 0; i < SECTORS.length; i++) {
+      var s = SECTORS[i];
+      // pigment bands sit on the meshwork; PAS sweep up from the iris to
+      // whichever structure they reach (`reach` = structure index)
+      var isPig = (s.type === "pigment"), isPale = (s.type === "pale");
+      var rIn = (s.rIn != null) ? s.rIn
+              : isPig ? DEFAULT_STRUCTURES[3].rIn
+              : isPale ? DEFAULT_STRUCTURES[1].rIn : STRUCTURES[0].rIn;
+      var rOut = (s.rOut != null) ? s.rOut
+               : (s.reach != null) ? DEFAULT_STRUCTURES[s.reach].rOut
+               : isPig ? DEFAULT_STRUCTURES[4].rIn
+               : isPale ? DEFAULT_STRUCTURES[2].rOut : DEFAULT_STRUCTURES[4].rOut;
+      var aMul = (s.strength != null) ? s.strength : 1;
+      {
+        var grad = ctx.createRadialGradient(g.px, g.py, rIn * g.unit,
+                                            g.px, g.py, rOut * g.unit);
+        if (isPale) {
+          // bare sclera / thinly-covered ciliary face: angle recession, cyclodialysis
+          grad.addColorStop(0, "rgba(226,219,205,0)");
+          grad.addColorStop(0.3, "rgba(232,226,214," + (0.85 * aMul).toFixed(3) + ")");
+          grad.addColorStop(0.8, "rgba(240,236,227," + (0.9 * aMul).toFixed(3) + ")");
+          grad.addColorStop(1, "rgba(228,222,210,0)");
+        } else if (s.type === "pigment") {
+          // heavy pigment banding over the meshwork
+          grad.addColorStop(0, "rgba(48,26,10,0)");
+          grad.addColorStop(0.35, "rgba(44,24,9," + (0.85 * aMul).toFixed(3) + ")");
+          grad.addColorStop(0.85, "rgba(30,16,6," + (0.8 * aMul).toFixed(3) + ")");
+          grad.addColorStop(1, "rgba(30,16,6,0)");
+        } else {
+          // PAS: iris tissue bridging the recess up on to the meshwork
+          grad.addColorStop(0, "rgba(158,92,40," + (0.97 * aMul).toFixed(3) + ")");
+          grad.addColorStop(0.62, "rgba(138,78,34," + (0.92 * aMul).toFixed(3) + ")");
+          grad.addColorStop(0.93, "rgba(120,66,28," + (0.55 * aMul).toFixed(3) + ")");
+          grad.addColorStop(1, "rgba(112,60,26,0)");
+        }
+        ctx.fillStyle = grad;
+        sectorPath(g, rIn, rOut, s.from, s.to);
+        ctx.fill();
+      }
+    }
   }
 
   function drawDebugRings() {
@@ -274,6 +371,18 @@
     // reveal structures only down to the deepest visible one (see setDeepest)
     setDeepest: function (d) { setDeepest(d); },
     isActive: function (i) { return !!activeMask[i]; },
+    // sectoral findings (PAS, focal pigment) fixed to clock positions
+    setSectors: function (arr) { SECTORS = (arr && arr.length) ? arr.slice() : []; },
+    // goniolens tilt, -1 … +1 (positive = tilted toward the angle under view)
+    setTilt: function (t) {
+      t = Math.max(-1, Math.min(1, t || 0));
+      if (t === tilt) return;
+      tilt = t; if (tiltCb) tiltCb(tilt);
+    },
+    getTilt: function () { return tilt; },
+    onTilt: function (cb) { tiltCb = cb; },
+    // force a frame (rAF is throttled when the tab is hidden)
+    redraw: function () { render(); },
     calibrate: function (on) { calibOn = on; DEBUG_RINGS = on; updateCalib(); },
     getStructures: function () { return JSON.parse(JSON.stringify(STRUCTURES)); },
     setStructureR: function (i, rIn, rOut) { STRUCTURES[i].rIn = rIn; STRUCTURES[i].rOut = rOut; },

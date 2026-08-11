@@ -9,12 +9,12 @@
 
   // structures in the viewer's radial order (index 0 = innermost)
   var STRUCTS = [
-    { name: "Iris", desc: "Where the iris inserts (angle recess); its position relative to the landmarks above sets the grade." },
-    { name: "Ciliary body band", desc: "Grey-brown band seen only in wide-open angles, between the scleral spur and the iris root." },
-    { name: "Scleral spur", desc: "The whitest, brightest band in the angle; the posterior meshwork border." },
-    { name: "Trabecular meshwork", desc: "The filtering meshwork overlying Schlemm's canal; pigments posteriorly over time." },
-    { name: "Schwalbe's line", desc: "Termination of Descemet's membrane; the anterior-most angle landmark." },
-    { name: "Cornea", desc: "The clear cornea anterior to (above) Schwalbe's line." }
+    { name: "Iris", desc: "The iris root and its insertion into the ciliary body face (the angle recess). Its level relative to the landmarks above sets the Shaffer grade; the peripheral contraction roll can partly hide the meshwork." },
+    { name: "Ciliary body band", desc: "A light-grey to dark-brown band between the scleral spur and the iris root, seen only in wide-open angles — broad in myopic/aphakic eyes, narrow to absent in hyperopes." },
+    { name: "Scleral spur", desc: "A ridge of sclera marking the posterior border of the meshwork; usually the sharpest landmark — white to light-grey (yellowish in older eyes)." },
+    { name: "Trabecular meshwork", desc: "The filtering meshwork between the scleral spur and Schwalbe's line, carrying ~90% of aqueous outflow. Its posterior part overlies Schlemm's canal and pigments with age, heaviest inferiorly." },
+    { name: "Schwalbe's line", desc: "The anterior border of the meshwork — the termination of Descemet's membrane — usually a subtle change in colour/density, occasionally a fine ridge; pigment can settle here (Sampaolesi's line)." },
+    { name: "Cornea", desc: "The clear cornea anterior to Schwalbe's line; the corneal wedge (two slit-beam reflections meeting at Schwalbe's) pinpoints the angle." }
   ];
 
   // deepest visible structure (viewer index) for a given clock-hour's iris
@@ -61,6 +61,7 @@
   function setCase(id) {
     currentCase = Gonio.caseById(id);
     V.setDiscImage(currentCase.disc);        // swap to this case's disc
+    V.setSectors(currentCase.sectors);       // sectoral findings, fixed to the clock
     applyVisibility();                       // show only the layers present in this case
     $("case-desc").textContent = currentCase.description;
     updateGrading();
@@ -84,13 +85,39 @@
   /* apply which anatomy layers are present for the current case + clock hour:
      hide the covered posterior structures on the disc and grey them in the list */
   function applyVisibility() {
-    var deepest = deepestFor(currentCase.clockHours[V.getHour()]);
+    var hd = currentCase.clockHours[V.getHour()];
+    var deepest = deepestFor(hd), t = V.getTilt(), opened = 0;
+    // Tilting the lens toward the angle lets you see farther posteriorly — but
+    // only where the structures are merely hidden by the iris convexity
+    // (optical closure). Appositional and synechial closure do not open.
+    if (t > 0.25 && hd.closure === "optical") {
+      opened = (t > 0.7) ? 2 : 1;
+      deepest = Math.max(1, deepest - opened);
+    }
     V.setDeepest(deepest);
     var items = list.children;
     for (var i = 0; i < items.length; i++) {
       items[i].classList.toggle("off", !(i === 0 || i >= deepest));
     }
+    updateTiltCaption(t, hd, opened);
   }
+
+  /* ---- goniolens tilt ---- */
+  var tiltRange = $("tilt-range"), tiltCaption = $("tilt-caption");
+  function updateTiltCaption(t, hd, opened) {
+    var msg;
+    if (t <= 0.25 && t >= -0.25) msg = "Straight on — the natural, worst-case view.";
+    else if (t < -0.25) msg = "Tilted away from the angle — even less is visible.";
+    else if (opened) msg = "Tilted toward the angle — seeing farther posteriorly; " +
+      (opened > 1 ? "the angle opens up fully." : "one more structure comes into view.");
+    else if (hd.closure === "synechial") msg = "Tilted toward the angle — but these synechiae are adherent, so nothing opens.";
+    else if (hd.closure === "appositional") msg = "Tilted toward the angle — the iris is against the meshwork; indentation, not tilt, is needed here.";
+    else msg = "Tilted toward the angle — all structures were already visible.";
+    tiltCaption.textContent = msg;
+  }
+  tiltRange.addEventListener("input", function () { V.setTilt(tiltRange.value / 100); });
+  $("tilt-reset").addEventListener("click", function () { tiltRange.value = 0; V.setTilt(0); });
+  V.onTilt(function () { applyVisibility(); });
 
   /* ---- anatomy-mask toggle ---- */
   var maskSwitch = $("mask-switch");
@@ -172,6 +199,7 @@
     var g = Gonio.shaffer(hd), sp = Gonio.spaethNotation(hd);
     $("grading-info").innerHTML =
       '<p><b>Shaffer grade ' + g.grade + '</b> — ' + g.label + ' (' + g.range + ')<br>' + g.note + '</p>' +
+      '<p>Risk of closure: <b>' + g.risk + '</b></p>' +
       '<p>Spaeth: <b>' + sp + '</b></p>';
   }
 

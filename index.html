@@ -94,6 +94,7 @@
       </div>
     </div>
     <div class="stage-controls">
+      <div class="control-block">
       <div class="dial-wrap">
         <svg id="dial-svg" viewBox="0 0 200 200" aria-label="Clock-hour dial">
           <circle class="dial-ring" cx="100" cy="100" r="78"/>
@@ -108,6 +109,16 @@
         </svg>
       </div>
       <div class="dial-caption">Grab the knob and spin to travel around the angle</div>
+      </div>
+
+      <div class="control-block tilt-block">
+        <div class="tilt-head">Goniolens tilt</div>
+        <input type="range" id="tilt-range" min="-100" max="100" value="0" step="1"
+               aria-label="Goniolens tilt">
+        <div class="tilt-scale"><span>away</span><span>straight on</span><span>toward angle</span></div>
+        <div class="tilt-caption" id="tilt-caption">Straight on — the natural, worst-case view.</div>
+        <button id="tilt-reset" class="tilt-reset">Reset tilt</button>
+      </div>
     </div>
   </section>
 
