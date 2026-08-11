@@ -180,37 +180,124 @@
     ctx.closePath();
   }
 
+  /* An irregular sector outline. Synechiae and pigment bands never end in a
+     straight radial cut: the height tapers away at the ends like a tent and the
+     leading edge is scalloped, so the path is built from many small steps with
+     a summed-sine profile rather than from two clean arcs. */
+  function organicPath(g, rIn, rOutMax, h0, h1, seed, wob, floor) {
+    var steps = 96, i, t, h, env, noise, r, p;
+    var s1 = seed * 1.7 + 0.3, s2 = seed * 0.37 + 2.1, s3 = seed * 2.9 + 1.4;
+    ctx.beginPath();
+    for (i = 0; i <= steps; i++) {                       // scalloped outer edge
+      t = i / steps; h = h0 + (h1 - h0) * t;
+      env = Math.pow(Math.sin(Math.PI * t), 0.45);       // tapers to nothing at the ends
+      noise = Math.sin(t * 9.1 + s1) * 0.5 + Math.sin(t * 19.3 + s2) * 0.32
+            + Math.sin(t * 37.7 + s3) * 0.18;
+      r = rIn + (rOutMax - rIn) * (floor + (1 - floor) * env) + noise * wob * env;
+      p = polar(g, r, h);
+      if (i === 0) ctx.moveTo(p[0], p[1]); else ctx.lineTo(p[0], p[1]);
+    }
+    for (i = steps; i >= 0; i--) {                       // back along the inner edge
+      t = i / steps; h = h0 + (h1 - h0) * t;
+      p = polar(g, rIn, h);
+      ctx.lineTo(p[0], p[1]);
+    }
+    ctx.closePath();
+  }
+
+  /* Synechiae are iris tissue dragged up on to the meshwork — so rather than
+     painting flat colour over the artwork (which kills its texture), redraw the
+     disc enlarged about the pupil and clip it to the sector. The iris's own
+     fibres and crypts are then carried outward across the angle structures, and
+     the result is continuous with the surrounding iris because it IS the iris. */
+  function paintTissue(g, s) {
+    var reach = DEFAULT_STRUCTURES[s.reach != null ? s.reach : 4].rOut;
+    var irisEdge = DEFAULT_STRUCTURES[0].rOut;
+    var rIn = Math.max(0.05, DEFAULT_STRUCTURES[0].rIn * 0.7);
+    var kMax = reach / irisEdge;                         // how far the tissue is pulled
+    if (s.strength != null) kMax = 1 + (kMax - 1) * s.strength;
+    var span = s.to - s.from, seed = s.seed || 3;
+    var whole = span >= 11.9;                            // circumferential: no taper
+    var steps = 180, i, t, h, env, noise, r, p;
+
+    /* One smooth silhouette, drawn in a single pass. Its outer edge runs from
+       the natural iris edge at the ends up to the synechia's full reach in the
+       middle, so where the tent dies away the pulled tissue lands exactly where
+       iris already was and the join is invisible — no seam, and no staircase
+       from slicing the pull into steps. */
+    ctx.save();
+    ctx.beginPath();
+    for (i = 0; i <= steps; i++) {
+      t = i / steps; h = s.from + span * t;
+      env = whole ? 1 : Math.pow(Math.sin(Math.PI * t), 0.62);
+      noise = Math.sin(t * span * 5.1 + seed) * 0.34 + Math.sin(t * span * 11.7 + seed * 1.9) * 0.2
+            + Math.sin(t * span * 23.3 + seed * 0.7) * 0.12;
+      r = irisEdge + (reach - irisEdge) * env * (1 + noise * 0.3);
+      p = polar(g, r, h);
+      if (i === 0) ctx.moveTo(p[0], p[1]); else ctx.lineTo(p[0], p[1]);
+    }
+    for (i = steps; i >= 0; i--) {
+      t = i / steps; h = s.from + span * t;
+      p = polar(g, rIn, h);
+      ctx.lineTo(p[0], p[1]);
+    }
+    ctx.closePath();
+    ctx.clip();
+
+    ctx.save();
+    ctx.translate(g.px, g.py);
+    var sc = discScale() * kMax;
+    ctx.scale(sc, sc);
+    ctx.drawImage(disc, -disc.width / 2, -disc.height / 2);
+    ctx.restore();
+
+    // a little shadow under the rolled leading edge gives the tent depth
+    var eg = ctx.createRadialGradient(g.px, g.py, irisEdge * g.unit,
+                                      g.px, g.py, reach * g.unit);
+    eg.addColorStop(0, "rgba(38,17,6,0)");
+    eg.addColorStop(0.55, "rgba(38,17,6,0.05)");
+    eg.addColorStop(0.9, "rgba(36,16,6,0.2)");
+    eg.addColorStop(1, "rgba(28,12,4,0.34)");
+    ctx.fillStyle = eg;
+    ctx.fillRect(0, 0, g.cw, g.ch);
+    ctx.restore();
+  }
+
   // sectors are painted to an offscreen layer and composited through a blur, so
   // their edges fade into the surrounding tissue instead of ending in a hard cut
   var secCanvas = document.createElement("canvas");
   var sctx = secCanvas.getContext("2d");
 
-  // diffuse tissue changes are blurred; discrete structures (vessels, processes,
-  // precipitates, devices) must stay crisp, so they are drawn after the blur
+  // how each diffuse finding sits on the tissue: multiply darkens and screen
+  // lightens, both of which keep the underlying texture readable
+  var BLEND = { pigment: "multiply", blood: "multiply", pale: "screen" };
+  // discrete structures must stay crisp, so they are drawn after the blur pass
   var SHARP = { vessels: 1, processes: 1, kp: 1, laser: 1, stent: 1, dialysis: 1 };
 
   function drawSectors(g) {
     if (!SECTORS.length) return;
-    var soft = [], sharp = [], i;
-    for (i = 0; i < SECTORS.length; i++)
-      (SHARP[SECTORS[i].type] ? sharp : soft).push(SECTORS[i]);
-
-    if (soft.length) {
-      var dpr = Math.min(window.devicePixelRatio || 1, 2);
-      if (secCanvas.width !== canvas.width || secCanvas.height !== canvas.height) {
-        secCanvas.width = canvas.width; secCanvas.height = canvas.height;
-      }
+    var dpr = Math.min(window.devicePixelRatio || 1, 2), i, s;
+    if (secCanvas.width !== canvas.width || secCanvas.height !== canvas.height) {
+      secCanvas.width = canvas.width; secCanvas.height = canvas.height;
+    }
+    for (i = 0; i < SECTORS.length; i++) {
+      s = SECTORS[i];
+      if (SHARP[s.type]) continue;
+      if (s.type === "pas") { paintTissue(g, s); continue; }
+      // diffuse findings: paint offscreen, then composite blurred and blended
       sctx.setTransform(dpr, 0, 0, dpr, 0, 0);
       sctx.clearRect(0, 0, g.cw, g.ch);
-      var keep = ctx; ctx = sctx;          // paint the wedges offscreen
-      paintSectors(g, soft);
+      var keep = ctx; ctx = sctx;
+      paintSectors(g, [s]);
       ctx = keep;
       ctx.save();
-      ctx.filter = "blur(" + Math.max(3, g.ch * 0.016).toFixed(1) + "px)";
+      ctx.globalCompositeOperation = BLEND[s.type] || "source-over";
+      ctx.filter = "blur(" + Math.max(2, g.ch * 0.012).toFixed(1) + "px)";
       ctx.drawImage(secCanvas, 0, 0, g.cw, g.ch);
       ctx.restore();
     }
-    for (i = 0; i < sharp.length; i++) paintFeature(g, sharp[i]);
+    for (i = 0; i < SECTORS.length; i++)
+      if (SHARP[SECTORS[i].type]) paintFeature(g, SECTORS[i]);
   }
 
   /* ---- discrete angle features -------------------------------------- */
@@ -356,34 +443,47 @@
       {
         var grad = ctx.createRadialGradient(g.px, g.py, rIn * g.unit,
                                             g.px, g.py, rOut * g.unit);
-        if (isPale) {
-          // bare sclera / thinly-covered ciliary face: angle recession, cyclodialysis
-          grad.addColorStop(0, "rgba(226,219,205,0)");
-          grad.addColorStop(0.3, "rgba(232,226,214," + (0.85 * aMul).toFixed(3) + ")");
-          grad.addColorStop(0.8, "rgba(240,236,227," + (0.9 * aMul).toFixed(3) + ")");
-          grad.addColorStop(1, "rgba(228,222,210,0)");
-        } else if (isBlood) {
-          // blood layered on the meshwork, settling inferiorly under gravity
-          grad.addColorStop(0, "rgba(126,16,14,0)");
-          grad.addColorStop(0.3, "rgba(146,20,18," + (0.88 * aMul).toFixed(3) + ")");
-          grad.addColorStop(0.85, "rgba(168,32,26," + (0.8 * aMul).toFixed(3) + ")");
-          grad.addColorStop(1, "rgba(150,24,20,0)");
-        } else if (s.type === "pigment") {
-          // heavy pigment banding over the meshwork
-          grad.addColorStop(0, "rgba(48,26,10,0)");
-          grad.addColorStop(0.35, "rgba(44,24,9," + (0.85 * aMul).toFixed(3) + ")");
-          grad.addColorStop(0.85, "rgba(30,16,6," + (0.8 * aMul).toFixed(3) + ")");
-          grad.addColorStop(1, "rgba(30,16,6,0)");
-        } else {
-          // PAS: iris tissue bridging the recess up on to the meshwork
-          grad.addColorStop(0, "rgba(158,92,40," + (0.97 * aMul).toFixed(3) + ")");
-          grad.addColorStop(0.62, "rgba(138,78,34," + (0.92 * aMul).toFixed(3) + ")");
-          grad.addColorStop(0.93, "rgba(120,66,28," + (0.55 * aMul).toFixed(3) + ")");
-          grad.addColorStop(1, "rgba(112,60,26,0)");
+        // these are composited through a blend mode (see BLEND), so the colours
+        // below modulate the tissue rather than covering it
+        if (isPale) {                       // screen: lifts towards bare sclera
+          grad.addColorStop(0, "rgba(214,208,196,0)");
+          grad.addColorStop(0.28, "rgba(224,219,208," + (0.8 * aMul).toFixed(3) + ")");
+          grad.addColorStop(0.82, "rgba(232,228,219," + (0.86 * aMul).toFixed(3) + ")");
+          grad.addColorStop(1, "rgba(214,208,196,0)");
+        } else if (isBlood) {               // multiply: keeps green/blue down, reds through
+          grad.addColorStop(0, "rgba(190,70,58,0)");
+          grad.addColorStop(0.28, "rgba(172,48,40," + (0.9 * aMul).toFixed(3) + ")");
+          grad.addColorStop(0.85, "rgba(150,34,28," + (0.85 * aMul).toFixed(3) + ")");
+          grad.addColorStop(1, "rgba(180,60,50,0)");
+        } else {                            // pigment — multiply: darkens the meshwork
+          grad.addColorStop(0, "rgba(150,120,92,0)");
+          grad.addColorStop(0.32, "rgba(116,88,62," + (0.9 * aMul).toFixed(3) + ")");
+          grad.addColorStop(0.84, "rgba(92,68,46," + (0.88 * aMul).toFixed(3) + ")");
+          grad.addColorStop(1, "rgba(140,112,86,0)");
         }
         ctx.fillStyle = grad;
-        sectorPath(g, rIn, rOut, s.from, s.to);
+        organicPath(g, rIn, rOut, s.from, s.to, s.seed || 11, 0.010, 0.62);
         ctx.fill();
+
+        // pigment and blood are granular, not a smooth wash — stipple them
+        if (isPig || isBlood) {
+          var rand2 = rng((s.seed || 11) * 13 + 5), q = Math.round((s.to - s.from) * 90);
+          ctx.save();
+          organicPath(g, rIn, rOut, s.from, s.to, s.seed || 11, 0.010, 0.62);
+          ctx.clip();
+          for (var k2 = 0; k2 < q; k2++) {
+            var hh = s.from + rand2() * (s.to - s.from);
+            var rr2 = rIn + rand2() * (rOut - rIn);
+            var pp = polar(g, rr2, hh);
+            ctx.fillStyle = isBlood
+              ? "rgba(128,26,22," + (0.25 + rand2() * 0.4).toFixed(2) + ")"
+              : "rgba(58,40,24," + (0.25 + rand2() * 0.45).toFixed(2) + ")";
+            ctx.beginPath();
+            ctx.arc(pp[0], pp[1], Math.max(0.6, g.ch * 0.0016) * (0.7 + rand2() * 1.5), 0, TWO_PI);
+            ctx.fill();
+          }
+          ctx.restore();
+        }
       }
     }
   }
