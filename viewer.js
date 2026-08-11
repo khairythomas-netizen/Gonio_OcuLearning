@@ -34,7 +34,7 @@
   var DISC_DIR = 1;        // spin direction
 
   // goniolens tilt: -1 (away) … 0 (straight on) … +1 (tilted toward the angle)
-  var tilt = 0, TILT_STRETCH = 0.45; // radial stretch at full tilt (foreshortening)
+  var tilt = 0;                      // goniolens tilt, -1 … +1 (see geom)
   var tiltCb = null;
 
   // sectoral findings drawn in eye-space (fixed to the clock, not to the view)
@@ -78,7 +78,7 @@
   function hourLabel(p) { var h = ((Math.round(p) % HOURS) + HOURS) % HOURS; return LABELS[h] + " o'clock"; }
 
   function load() {
-    disc.onload = function () { loaded = true; };
+    disc.onload = function () { loaded = true; warp.q = null; };
     disc.src = DISC_SRC + "?v=" + Date.now();
   }
 
@@ -95,15 +95,89 @@
      itself keeps a constant orientation. That way each clock hour really shows
      its own sector of tissue (essential for sectoral findings such as PAS)
      rather than the same sector spinning on itself.
-     Tilt is a change in FORESHORTENING, not a slide. The angle is a 3-D recess
-     whose wall is viewed obliquely, so its radial extent reaches the eye
-     compressed by roughly the cosine of the obliquity, while its circumferential
-     extent is untouched. Tilting the lens toward the angle reduces that
-     obliquity: the wall opens towards the observer and the bands stretch apart,
-     resolving structures that were crushed together. Tilting away increases it
-     and the bands narrow. So tilt applies an anisotropic scale along the RADIAL
-     direction about the point being viewed — the band under inspection stays put
-     while everything stretches or narrows around it. */
+     Tilt reprojects a 3-D structure; it is not a squash of the picture. In a
+     meridional section the angle wall does not lie flat — running outward from
+     the iris root it also climbs forward towards the cornea. Rotating the line
+     of sight by Δ therefore sends a point at radius r and axial height z(r) to
+     an apparent radius r·cosΔ + z(r)·sinΔ. Because z rises steeply across the
+     meshwork and hardly at all over the iris, each band is reprojected by a
+     DIFFERENT amount: tilting toward the angle opens the recess — the meshwork
+     and ciliary band spread noticeably while the cornea and the iris face barely
+     move. That differential is what reads as depth; a uniform scale reads as a
+     zoom. The map is anchored so the radius under inspection stays put, so the
+     view opens rather than sliding. */
+  var TILT_MAX_RAD = 0.26;      // line-of-sight swing at full tilt (~15°)
+  var WALL_Z = 0.17;            // axial climb, iris plane → cornea, in half-widths
+  var Z_R0 = 0.70, Z_R1 = 0.96; // over which radii the wall climbs
+
+  function wallZ(r) {
+    var t = (r - Z_R0) / (Z_R1 - Z_R0);
+    t = t < 0 ? 0 : t > 1 ? 1 : t;
+    return WALL_Z * t * t * (3 - 2 * t);
+  }
+
+  // radius at the centre of the view (independent of stage size)
+  function viewRadius() {
+    return (PUPIL_CY - ORBIT_CY) * 1000 / ((disc.width / 2) * DISC_ZOOM);
+  }
+
+  /* The reprojection, plus its inverse and a pre-warped disc — all cached,
+     since they only change when the tilt does. */
+  var warp = { q: null, W: null, inv: null, canvas: null };
+  var warpCanvas = document.createElement("canvas");
+  var wctx = warpCanvas.getContext("2d");
+
+  function warpFor() {
+    var q = Math.round(tilt * 50) / 50;                  // quantised, so drags reuse
+    if (warp.q === q) return warp;
+    var d = q * TILT_MAX_RAD, cd = Math.cos(d), sd = Math.sin(d);
+    var rv = viewRadius();
+    function raw(r) { return r * cd + wallZ(r) * sd; }
+    var shift = rv - raw(rv);                            // anchor the viewed radius
+    var W = function (r) { return raw(r) + shift; };
+
+    // tabulate for the inverse (W is monotone over the range we ever show)
+    var M = 512, table = new Float64Array(M + 1), i;
+    for (i = 0; i <= M; i++) table[i] = W(i / M * 1.3);
+    function inv(R) {
+      var lo = 0, hi = M, mid;
+      while (hi - lo > 1) { mid = (lo + hi) >> 1; if (table[mid] < R) lo = mid; else hi = mid; }
+      var a = table[lo], b = table[hi];
+      var t = (b - a) > 1e-9 ? (R - a) / (b - a) : 0;
+      return (lo + t) / M * 1.3;
+    }
+
+    warp.q = q; warp.W = W; warp.inv = inv;
+    warp.canvas = (Math.abs(q) < 0.005 || !loaded) ? null : buildWarpedDisc(inv);
+    return warp;
+  }
+
+  /* Re-image the en-face disc under the reprojection, one thin annulus at a
+     time. Doing it here rather than per-frame keeps the draw loop to a single
+     drawImage, and the anatomy, masks and findings all read the same map. */
+  function buildWarpedDisc(inv) {
+    var w = disc.width, h = disc.height, half = w / 2, cx = half, cy = h / 2;
+    warpCanvas.width = w; warpCanvas.height = h;
+    wctx.setTransform(1, 0, 0, 1, 0, 0);
+    wctx.clearRect(0, 0, w, h);
+    var N = 128, i, R0, R1, rm, k;
+    for (i = 0; i < N; i++) {
+      R0 = i / N * 1.05; R1 = (i + 1) / N * 1.05;
+      rm = inv((R0 + R1) / 2);
+      if (!(rm > 1e-4)) continue;
+      k = ((R0 + R1) / 2) / rm;
+      wctx.save();
+      wctx.beginPath();
+      wctx.arc(cx, cy, R1 * half, 0, TWO_PI);
+      wctx.arc(cx, cy, R0 * half, 0, TWO_PI, true);
+      wctx.clip("evenodd");
+      wctx.translate(cx, cy); wctx.scale(k, k); wctx.translate(-cx, -cy);
+      wctx.drawImage(disc, 0, 0);
+      wctx.restore();
+    }
+    return warpCanvas;
+  }
+
   function geom() {
     var cw = stage.clientWidth, ch = stage.clientHeight;
     var theta = pos / HOURS * TWO_PI * DISC_DIR;
@@ -112,31 +186,10 @@
     var px = cw / 2 - Rorbit * Math.sin(theta);
     var py = ORBIT_CY * ch + Rorbit * Math.cos(theta);
     return { cw: cw, ch: ch, px: px, py: py, theta: theta,
-             unit: (disc.width / 2) * discScale(),
-             f: 1 + tilt * TILT_STRETCH };
+             unit: (disc.width / 2) * discScale(), w: warpFor() };
   }
-
-  /* the radial stretch, as a transform about the viewed point */
-  function tiltXf(g) {
-    if (Math.abs(g.f - 1) < 1e-4) return null;
-    var cx = g.cw / 2, cy = ORBIT_CY * g.ch;
-    // pupil → viewport centre is the radial (depth) direction at this clock hour
-    return { cx: cx, cy: cy, f: g.f, phi: Math.atan2(cy - g.py, cx - g.px) };
-  }
-  function applyTilt(t) {
-    if (!t) return;
-    ctx.translate(t.cx, t.cy);
-    ctx.rotate(t.phi); ctx.scale(t.f, 1); ctx.rotate(-t.phi);
-    ctx.translate(-t.cx, -t.cy);
-  }
-  // map a canvas point back through the stretch, so hit-testing stays true
-  function unTilt(t, x, y) {
-    if (!t) return [x, y];
-    var dx = x - t.cx, dy = y - t.cy;
-    var c = Math.cos(t.phi), s = Math.sin(t.phi);
-    var ex = (dx * c + dy * s) / t.f, ey = -dx * s + dy * c;
-    return [t.cx + ex * c - ey * s, t.cy + ex * s + ey * c];
-  }
+  // an anatomical radius, as it appears once the tilt has reprojected it
+  function wr(g, r) { return g.w.W ? g.w.W(r) : r; }
 
   function render() {
     var cw = stage.clientWidth, ch = stage.clientHeight;
@@ -152,31 +205,27 @@
 
     if (!loaded) return;
 
-    var g = geom(), xf = tiltXf(g);
-    // everything — tissue, findings, masks — lives under the same tilt, so the
-    // glow and the anatomy can never drift apart
-    ctx.save();
-    applyTilt(xf);
-
+    var g = geom(), img = g.w.canvas || disc;
     ctx.save();
     // draw the disc unrotated about the orbiting pupil, so the sector on screen
     // is the sector we have actually travelled to
     ctx.translate(g.px, g.py);
     var sc = discScale();
     ctx.scale(sc, sc);
-    ctx.drawImage(disc, -disc.width / 2, -disc.height / 2);
+    ctx.drawImage(img, -disc.width / 2, -disc.height / 2);
     ctx.restore();
 
     drawSectors(g);
     if (MASKS_ON) drawGlow(hoverStruct);
     if (DEBUG_RINGS) drawDebugRings();
-    ctx.restore();
   }
 
   /* ---- hover / glow — concentric rings about the pupil -------------- */
   function structureAt(cx, cy) {
-    var g = geom(), p = unTilt(tiltXf(g), cx, cy);
-    var r = Math.hypot(p[0] - g.px, p[1] - g.py) / g.unit;
+    // screen radius → apparent radius → back through the reprojection, so the
+    // masks stay locked to the anatomy at every tilt
+    var g = geom(), rApp = Math.hypot(cx - g.px, cy - g.py) / g.unit;
+    var r = g.w.inv ? g.w.inv(rApp) : rApp;
     // iterate outermost→innermost so that where bands overlap the more
     // anterior structure (e.g. Schwalbe's line over TM) wins the hover
     for (var i = STRUCTURES.length - 1; i >= 0; i--) {
@@ -189,7 +238,7 @@
   function drawGlow(si) {
     if (si < 0 || !activeMask[si]) return;
     var g = geom(), s = STRUCTURES[si];
-    var rIn = s.rIn * g.unit, rOut = s.rOut * g.unit;
+    var rIn = wr(g, s.rIn) * g.unit, rOut = wr(g, s.rOut) * g.unit;
     ctx.save();
     ctx.globalCompositeOperation = "lighter";
     var grad = ctx.createRadialGradient(g.px, g.py, rIn, g.px, g.py, rOut);
@@ -210,8 +259,8 @@
     var a1 = h1 / HOURS * TWO_PI - Math.PI / 2;
     if (a1 <= a0) a1 += TWO_PI;
     ctx.beginPath();
-    ctx.arc(g.px, g.py, rOut * g.unit, a0, a1);
-    ctx.arc(g.px, g.py, rIn * g.unit, a1, a0, true);
+    ctx.arc(g.px, g.py, wr(g, rOut) * g.unit, a0, a1);
+    ctx.arc(g.px, g.py, wr(g, rIn) * g.unit, a1, a0, true);
     ctx.closePath();
   }
 
@@ -283,12 +332,12 @@
     ctx.translate(g.px, g.py);
     var sc = discScale() * kMax;
     ctx.scale(sc, sc);
-    ctx.drawImage(disc, -disc.width / 2, -disc.height / 2);
+    ctx.drawImage(g.w.canvas || disc, -disc.width / 2, -disc.height / 2);
     ctx.restore();
 
     // a little shadow under the rolled leading edge gives the tent depth
-    var eg = ctx.createRadialGradient(g.px, g.py, irisEdge * g.unit,
-                                      g.px, g.py, reach * g.unit);
+    var eg = ctx.createRadialGradient(g.px, g.py, wr(g, irisEdge) * g.unit,
+                                      g.px, g.py, wr(g, reach) * g.unit);
     eg.addColorStop(0, "rgba(38,17,6,0)");
     eg.addColorStop(0.55, "rgba(38,17,6,0.05)");
     eg.addColorStop(0.9, "rgba(36,16,6,0.2)");
@@ -338,8 +387,8 @@
   /* ---- discrete angle features -------------------------------------- */
   // point at radius r (fraction of disc half-width) and clock position `hour`
   function polar(g, r, hour) {
-    var a = hour / HOURS * TWO_PI;
-    return [g.px + r * g.unit * Math.sin(a), g.py - r * g.unit * Math.cos(a)];
+    var a = hour / HOURS * TWO_PI, R = wr(g, r) * g.unit;
+    return [g.px + R * Math.sin(a), g.py - R * Math.cos(a)];
   }
   // deterministic PRNG so features don't shimmer between frames
   function rng(seed) {
@@ -476,8 +525,8 @@
                : isPale ? DEFAULT_STRUCTURES[2].rOut : DEFAULT_STRUCTURES[4].rOut;
       var aMul = (s.strength != null) ? s.strength : 1;
       {
-        var grad = ctx.createRadialGradient(g.px, g.py, rIn * g.unit,
-                                            g.px, g.py, rOut * g.unit);
+        var grad = ctx.createRadialGradient(g.px, g.py, wr(g, rIn) * g.unit,
+                                            g.px, g.py, wr(g, rOut) * g.unit);
         // these are composited through a blend mode (see BLEND), so the colours
         // below modulate the tissue rather than covering it
         if (isPale) {                       // screen: lifts towards bare sclera
@@ -530,8 +579,8 @@
     for (var i = 0; i < STRUCTURES.length; i++) {
       ctx.fillStyle = cols[i % cols.length];
       ctx.beginPath();
-      ctx.arc(g.px, g.py, STRUCTURES[i].rOut * g.unit, 0, TWO_PI);
-      ctx.arc(g.px, g.py, STRUCTURES[i].rIn * g.unit, 0, TWO_PI, true);
+      ctx.arc(g.px, g.py, wr(g, STRUCTURES[i].rOut) * g.unit, 0, TWO_PI);
+      ctx.arc(g.px, g.py, wr(g, STRUCTURES[i].rIn) * g.unit, 0, TWO_PI, true);
       ctx.fill("evenodd");
     }
   }
@@ -636,7 +685,7 @@
     // swap the displayed disc (per-case pathology imagery)
     setDiscImage: function (src) {
       loaded = false; hoverStruct = -1;
-      disc.onload = function () { loaded = true; render(); };
+      disc.onload = function () { loaded = true; warp.q = null; render(); };
       disc.src = src + "?v=" + Date.now();
     },
     // per-case anatomy ring overrides; pass null/undefined to restore defaults
