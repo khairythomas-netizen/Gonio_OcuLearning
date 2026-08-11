@@ -107,17 +107,18 @@
   function updateTiltCaption(t, hd, opened) {
     var msg;
     if (t <= 0.25 && t >= -0.25) msg = "Straight on — the natural, worst-case view.";
-    else if (t < -0.25) msg = "Tilted away from the angle — even less is visible.";
-    else if (opened) msg = "Tilted toward the angle — seeing farther posteriorly; " +
+    else if (t < -0.25) msg = "Tilted away — the angle wall is seen more obliquely, so the bands foreshorten and crowd together.";
+    else if (opened) msg = "Tilted toward the angle — the wall opens towards you and the bands stretch apart; " +
       (opened > 1 ? "the angle opens up fully." : "one more structure comes into view.");
-    else if (hd.closure === "synechial") msg = "Tilted toward the angle — but these synechiae are adherent, so nothing opens.";
+    else if (hd.closure === "synechial") msg = "Tilted toward the angle — the bands stretch, but these synechiae are adherent, so nothing opens.";
     else if (hd.closure === "appositional") msg = "Tilted toward the angle — the iris is against the meshwork; indentation, not tilt, is needed here.";
-    else msg = "Tilted toward the angle — all structures were already visible.";
+    else msg = "Tilted toward the angle — the bands stretch apart; all structures were already visible.";
     tiltCaption.textContent = msg;
   }
   tiltRange.addEventListener("input", function () { V.setTilt(tiltRange.value / 100); });
-  $("tilt-reset").addEventListener("click", function () { tiltRange.value = 0; V.setTilt(0); });
-  V.onTilt(function () { applyVisibility(); });
+  $("tilt-reset").addEventListener("click", function () { V.setTilt(0); });
+  // keep the slider honest when tilt is changed from anywhere else
+  V.onTilt(function (t) { tiltRange.value = Math.round(t * 100); applyVisibility(); });
 
   /* ---- anatomy-mask toggle ---- */
   var maskSwitch = $("mask-switch");

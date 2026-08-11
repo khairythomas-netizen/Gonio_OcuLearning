@@ -34,7 +34,7 @@
   var DISC_DIR = 1;        // spin direction
 
   // goniolens tilt: -1 (away) … 0 (straight on) … +1 (tilted toward the angle)
-  var tilt = 0, TILT_REACH = 0.16;   // fraction of stage height of extra reach
+  var tilt = 0, TILT_STRETCH = 0.45; // radial stretch at full tilt (foreshortening)
   var tiltCb = null;
 
   // sectoral findings drawn in eye-space (fixed to the clock, not to the view)
@@ -95,19 +95,47 @@
      itself keeps a constant orientation. That way each clock hour really shows
      its own sector of tissue (essential for sectoral findings such as PAS)
      rather than the same sector spinning on itself.
-     Tilt models tilting the goniolens toward the angle being viewed, which lets
-     the examiner see farther posteriorly into the recess (Bayer & Spaeth, Ch. 3
-     "Advanced Maneuvers"): it shortens the pupil→viewport distance so deeper
-     structures come into frame. */
+     Tilt is a change in FORESHORTENING, not a slide. The angle is a 3-D recess
+     whose wall is viewed obliquely, so its radial extent reaches the eye
+     compressed by roughly the cosine of the obliquity, while its circumferential
+     extent is untouched. Tilting the lens toward the angle reduces that
+     obliquity: the wall opens towards the observer and the bands stretch apart,
+     resolving structures that were crushed together. Tilting away increases it
+     and the bands narrow. So tilt applies an anisotropic scale along the RADIAL
+     direction about the point being viewed — the band under inspection stays put
+     while everything stretches or narrows around it. */
   function geom() {
     var cw = stage.clientWidth, ch = stage.clientHeight;
     var theta = pos / HOURS * TWO_PI * DISC_DIR;
-    var Rorbit = (PUPIL_CY - ORBIT_CY) * ch - tilt * TILT_REACH * ch;
+    var Rorbit = (PUPIL_CY - ORBIT_CY) * ch;
     // the disc centre (pupil) orbits the pivot as the view turns
     var px = cw / 2 - Rorbit * Math.sin(theta);
     var py = ORBIT_CY * ch + Rorbit * Math.cos(theta);
     return { cw: cw, ch: ch, px: px, py: py, theta: theta,
-             unit: (disc.width / 2) * discScale() };
+             unit: (disc.width / 2) * discScale(),
+             f: 1 + tilt * TILT_STRETCH };
+  }
+
+  /* the radial stretch, as a transform about the viewed point */
+  function tiltXf(g) {
+    if (Math.abs(g.f - 1) < 1e-4) return null;
+    var cx = g.cw / 2, cy = ORBIT_CY * g.ch;
+    // pupil → viewport centre is the radial (depth) direction at this clock hour
+    return { cx: cx, cy: cy, f: g.f, phi: Math.atan2(cy - g.py, cx - g.px) };
+  }
+  function applyTilt(t) {
+    if (!t) return;
+    ctx.translate(t.cx, t.cy);
+    ctx.rotate(t.phi); ctx.scale(t.f, 1); ctx.rotate(-t.phi);
+    ctx.translate(-t.cx, -t.cy);
+  }
+  // map a canvas point back through the stretch, so hit-testing stays true
+  function unTilt(t, x, y) {
+    if (!t) return [x, y];
+    var dx = x - t.cx, dy = y - t.cy;
+    var c = Math.cos(t.phi), s = Math.sin(t.phi);
+    var ex = (dx * c + dy * s) / t.f, ey = -dx * s + dy * c;
+    return [t.cx + ex * c - ey * s, t.cy + ex * s + ey * c];
   }
 
   function render() {
@@ -124,7 +152,12 @@
 
     if (!loaded) return;
 
-    var g = geom();
+    var g = geom(), xf = tiltXf(g);
+    // everything — tissue, findings, masks — lives under the same tilt, so the
+    // glow and the anatomy can never drift apart
+    ctx.save();
+    applyTilt(xf);
+
     ctx.save();
     // draw the disc unrotated about the orbiting pupil, so the sector on screen
     // is the sector we have actually travelled to
@@ -137,11 +170,13 @@
     drawSectors(g);
     if (MASKS_ON) drawGlow(hoverStruct);
     if (DEBUG_RINGS) drawDebugRings();
+    ctx.restore();
   }
 
   /* ---- hover / glow — concentric rings about the pupil -------------- */
   function structureAt(cx, cy) {
-    var g = geom(), r = Math.hypot(cx - g.px, cy - g.py) / g.unit;
+    var g = geom(), p = unTilt(tiltXf(g), cx, cy);
+    var r = Math.hypot(p[0] - g.px, p[1] - g.py) / g.unit;
     // iterate outermost→innermost so that where bands overlap the more
     // anterior structure (e.g. Schwalbe's line over TM) wins the hover
     for (var i = STRUCTURES.length - 1; i >= 0; i--) {
