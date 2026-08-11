@@ -101,8 +101,12 @@ function makeClockHours(base, overrides) {
    differently (e.g. the narrow/closed angles). */
 Gonio.CASE_GROUPS = [
   "Angle closure — Shaffer grade",
+  "Angle closure — mechanisms",
   "Trabecular meshwork pigmentation",
-  "Other findings"
+  "Material in the angle",
+  "Trauma",
+  "Developmental",
+  "After laser & surgery"
 ];
 
 Gonio.CASES = [
@@ -118,6 +122,16 @@ Gonio.CASES = [
       }
     ),
     sectors: [{ type: "pigment", from: 4.6, to: 7.4, strength: 0.42 }]
+  },
+  {
+    id: "iris_processes", group: null, disc: "disc.png",
+    name: "Iris processes (normal variant)",
+    description: "Delicate, lacy uveal strands running from the iris root on to the meshwork — found in many normal angles. Unlike synechiae they are fine, they follow the concavity of the recess rather than bridging it, they do not obscure the structures beneath, and they move freely on indentation.",
+    clockHours: makeClockHours(
+      { insertion: "cb", contour: "flat", pigment: 1, pasBridge: false, vessels: false, sampaolesi: false }
+    ),
+    sectors: [{ type: "processes", from: 1.5, to: 5.5, density: 13, seed: 21 },
+              { type: "processes", from: 7.5, to: 10.5, density: 10, seed: 44 }]
   },
 
   /* --- Angle closure, graded --- */
@@ -160,6 +174,48 @@ Gonio.CASES = [
     clockHours: makeClockHours(
       { insertion: "cb", contour: "flat", pigment: 1, pasBridge: false, vessels: false, sampaolesi: false }
     )
+  },
+
+  /* --- Mechanisms of closure --- */
+  {
+    id: "plateau", group: "Angle closure — mechanisms", disc: "disc.png",
+    name: "Plateau iris",
+    description: "A flat central iris with an abnormally anterior, abrupt insertion of the iris root, so the angle is uniformly narrow all the way round despite a deep central chamber. On indentation the peripheral iris gives the characteristic 'double hump' as it drapes over the anteriorly-rotated ciliary body. Unlike pupillary block it is not relieved by iridotomy alone.",
+    clockHours: makeClockHours(
+      { insertion: "tm_p", contour: "flat", pigment: 1, pasBridge: false, vessels: false, sampaolesi: false, closure: "optical" }
+    ),
+    sectors: [{ type: "pas", from: 0, to: 12, reach: 2, strength: 0.5 }]
+  },
+  {
+    id: "nvg", group: "Angle closure — mechanisms", disc: "disc.png",
+    name: "Neovascular glaucoma",
+    description: "Fine new vessels branching across the ciliary body band and scleral spur on to the meshwork. They are distinguished from normal angle vessels by following no radial or circumferential pattern and by crossing the spur. Their fibrovascular membrane is invisible but contracts, zipping the angle closed — here it has already produced synechial closure superonasally.",
+    clockHours: makeClockHours(
+      { insertion: "cb", contour: "flat", pigment: 1, pasBridge: false, vessels: true, sampaolesi: false },
+      { 11: { pasBridge: true, insertion: "schwalbe", closure: "synechial" },
+        12: { pasBridge: true, insertion: "schwalbe", closure: "synechial" },
+        1:  { insertion: "spur" } }
+    ),
+    sectors: [
+      { type: "pas", from: 10.6, to: 12.4, reach: 4 },
+      { type: "vessels", from: 8.5, to: 15.5, density: 10, seed: 91 },
+      { type: "vessels", from: 2.5, to: 5.5, density: 6, seed: 12 }
+    ]
+  },
+  {
+    id: "uveitic", group: "Angle closure — mechanisms", disc: "disc.png",
+    name: "Uveitic angle with inflammatory PAS",
+    description: "Inflammatory precipitates sitting on the trabecular meshwork, heaviest inferiorly where debris settles, with broad synechiae where chronic inflammation has consolidated and dragged the iris on to the meshwork. In uveitis begin with the inferior angle — that is where the debris collects and the synechiae form.",
+    clockHours: makeClockHours(
+      { insertion: "cb", contour: "flat", pigment: 2, pasBridge: false, vessels: false, sampaolesi: false },
+      { 5: { pasBridge: true, insertion: "tm_p", closure: "synechial" },
+        6: { pasBridge: true, insertion: "schwalbe", closure: "synechial" },
+        7: { pasBridge: true, insertion: "tm_p", closure: "synechial" } }
+    ),
+    sectors: [
+      { type: "pas", from: 4.7, to: 7.3, reach: 3 },
+      { type: "kp", from: 3.2, to: 8.8, density: 11, seed: 33 }
+    ]
   },
 
   /* --- Trabecular meshwork pigmentation --- */
@@ -207,10 +263,19 @@ Gonio.CASES = [
     ),
     sectors: [{ type: "pigment", from: 5.6, to: 7.4, strength: 1 }]
   },
-
-  /* --- Other findings --- */
   {
-    id: "angle_recession", group: "Other findings", disc: "angle_recession.png",
+    id: "melanocytosis", group: "Trabecular meshwork pigmentation", disc: "pig_heavy.png",
+    name: "Oculodermal melanocytosis",
+    description: "Melanocytic infiltration of the angle: the meshwork is densely pigmented and partly obscured by unusually abundant, heavily pigmented iris processes, and the ciliary body band is generally dark. Glaucoma occurs in about 10%, so the angle deserves a careful look in anyone with melanosis oculi.",
+    clockHours: makeClockHours(
+      { insertion: "cb", contour: "flat", pigment: 4, pasBridge: false, vessels: false, sampaolesi: false }
+    ),
+    sectors: [{ type: "processes", from: 0, to: 12, density: 11, dark: true, seed: 66 }]
+  },
+
+  /* --- Trauma --- */
+  {
+    id: "angle_recession", group: "Trauma", disc: "angle_recession.png",
     name: "Angle recession",
     description: "A post-traumatic tear in the face of the ciliary body, here involving one segment: an abnormally wide, pale ciliary body band and a deep recess, with torn iris processes and a whiter-looking scleral spur. Travel the full 360° — the extent of involvement is what matters, and glaucoma follows in about 9%.",
     clockHours: makeClockHours(
@@ -219,7 +284,7 @@ Gonio.CASES = [
     sectors: [{ type: "pale", from: 6.8, to: 10.2, strength: 0.9 }]
   },
   {
-    id: "pas", group: "Other findings", disc: "pas.png",
+    id: "pas", group: "Angle closure — mechanisms", disc: "pas.png",
     name: "Peripheral anterior synechiae",
     description: "Broad synechiae bridging the recess up on to the meshwork in the superior angle — the usual site after angle closure — with a separate discrete adhesion nasally. Travel round the clock to map their extent. Being adherent, they stay closed on tilting or indentation, which is what distinguishes them from appositional closure.",
     clockHours: makeClockHours(
@@ -236,7 +301,7 @@ Gonio.CASES = [
     ]
   },
   {
-    id: "pigment_dispersion", group: "Other findings", disc: "pigment_dispersion.png",
+    id: "pigment_dispersion", group: "Material in the angle", disc: "pigment_dispersion.png",
     name: "Pigment dispersion syndrome",
     description: "A wide-open angle with dense, homogeneous black pigment in the posterior trabecular meshwork and a Sampaolesi line. The mid-peripheral iris is concave (posterior bowing against the zonules). Classically a young, myopic patient.",
     clockHours: makeClockHours(
@@ -244,7 +309,7 @@ Gonio.CASES = [
     )
   },
   {
-    id: "pseudoexfoliation", group: "Other findings", disc: "pseudoexfoliation.png",
+    id: "pseudoexfoliation", group: "Material in the angle", disc: "pseudoexfoliation.png",
     name: "Pseudoexfoliation syndrome",
     description: "A wide-open angle with granular, clumped brown trabecular pigment (less homogeneous than pigment dispersion), a line along Schwalbe's plus a wavy Sampaolesi line, and flecks of pseudoexfoliation material. Typically an elderly patient.",
     clockHours: makeClockHours(
@@ -252,7 +317,7 @@ Gonio.CASES = [
     )
   },
   {
-    id: "blood_schlemm", group: "Other findings", disc: "blood_schlemm.png",
+    id: "blood_schlemm", group: "Material in the angle", disc: "blood_schlemm.png",
     name: "Blood in Schlemm's canal",
     description: "Blood refluxed into Schlemm's canal — a red band in the posterior trabecular meshwork, seen when episcleral venous pressure exceeds IOP (carotid-cavernous or dural-sinus fistula, Sturge-Weber) or with ocular hypotony. Can also be an artefact of firm lens pressure.",
     clockHours: makeClockHours(
@@ -260,7 +325,7 @@ Gonio.CASES = [
     )
   },
   {
-    id: "cyclodialysis", group: "Other findings", disc: "cyclodialysis.png",
+    id: "cyclodialysis", group: "Trauma", disc: "cyclodialysis.png",
     name: "Cyclodialysis cleft",
     description: "A focal dis-insertion of the ciliary body from the scleral spur — a very deep cleft through which bare white sclera is visible. Aqueous escapes freely to the suprachoroidal space, so unlike angle recession this one runs a low IOP. Spin round to find the cleft; it may be only a fraction of a clock hour wide.",
     clockHours: makeClockHours(
@@ -269,12 +334,62 @@ Gonio.CASES = [
     sectors: [{ type: "pale", from: 3.9, to: 4.7, strength: 1 }]
   },
   {
-    id: "posterior_embryotoxon", group: "Other findings", disc: "posterior_embryotoxon.png",
+    id: "iridodialysis", group: "Trauma", disc: "disc.png",
+    name: "Iridodialysis",
+    description: "A traumatic tear of the iris root away from the ciliary body, leaving a dark gap through which the ciliary processes are directly visible. The iris is thinnest at its insertion, which is why it gives way here. It flags substantial blunt trauma — look carefully for accompanying angle recession.",
+    clockHours: makeClockHours(
+      { insertion: "cb", contour: "flat", pigment: 2, pasBridge: false, vessels: false, sampaolesi: false }
+    ),
+    sectors: [{ type: "dialysis", from: 7.6, to: 8.9, seed: 5 }]
+  },
+  {
+    id: "hyphema", group: "Trauma", disc: "disc.png",
+    name: "Hyphema in the angle",
+    description: "Blood in the anterior chamber settles into the inferior angle under gravity and lies on the trabecular meshwork. Small amounts are visible only on gonioscopy and rarely raise the pressure; a large hyphema filling the meshwork does. Small pigment balls may persist in the angle long after it clears.",
+    clockHours: makeClockHours(
+      { insertion: "cb", contour: "flat", pigment: 2, pasBridge: false, vessels: false, sampaolesi: false }
+    ),
+    sectors: [{ type: "blood", from: 4.2, to: 7.8, strength: 1 }]
+  },
+
+  /* --- Developmental --- */
+  {
+    id: "posterior_embryotoxon", group: "Developmental", disc: "posterior_embryotoxon.png",
     name: "Posterior embryotoxon",
-    description: "A prominent, anteriorly-displaced Schwalbe's line standing forward as a white ridge, most often inferiorly. A common normal variant; when florid with prominent iris processes it may be part of the Axenfeld-Rieger spectrum.",
+    description: "A prominent, anteriorly-displaced Schwalbe's line standing forward as a white ridge, most often inferiorly. A common normal variant; when florid and accompanied by prominent iris strands bridging to it, it becomes part of the Axenfeld-Rieger spectrum.",
     clockHours: makeClockHours(
       { insertion: "cb", contour: "flat", pigment: 1, pasBridge: false, vessels: false, sampaolesi: false }
     )
+  },
+
+  /* --- After laser & surgery --- */
+  {
+    id: "laser_trabeculoplasty", group: "After laser & surgery", disc: "pig_moderate.png",
+    name: "After laser trabeculoplasty",
+    description: "Discrete burn scars spaced evenly along the anterior pigmented meshwork, here treated over the inferior 180°. Knowing the extent already treated matters when planning further laser, and gonioscopy is the only way to see it.",
+    clockHours: makeClockHours(
+      { insertion: "cb", contour: "flat", pigment: 2, pasBridge: false, vessels: false, sampaolesi: false }
+    ),
+    sectors: [{ type: "laser", from: 3, to: 9, density: 7, seed: 8 }]
+  },
+  {
+    id: "migs_stent", group: "After laser & surgery", disc: "disc.png",
+    name: "MIGS stent in the angle",
+    description: "A trabecular bypass stent seated across the meshwork nasally, where Schlemm's canal and the collector channels are richest. Gonioscopy confirms the device is correctly positioned in the meshwork and not buried in iris or sitting free in the chamber — the reason intraoperative and post-operative gonioscopy matters in the MIGS era.",
+    clockHours: makeClockHours(
+      { insertion: "cb", contour: "flat", pigment: 1, pasBridge: false, vessels: false, sampaolesi: false }
+    ),
+    sectors: [{ type: "stent", from: 2.75, to: 3.25 }]
+  },
+  {
+    id: "postsurgical_pigment", group: "After laser & surgery", disc: "pig_inferior.png",
+    name: "Pigment after intraocular surgery",
+    description: "Scattered pigment throughout the angle following intraocular surgery or laser, densest inferiorly where it settles. Laser peripheral iridotomy is a particularly common cause of new inferior angle pigment.",
+    clockHours: makeClockHours(
+      { insertion: "cb", contour: "flat", pigment: 3, pasBridge: false, vessels: false, sampaolesi: false },
+      { 5: { pigment: 4 }, 6: { pigment: 4 }, 7: { pigment: 4 } }
+    ),
+    sectors: [{ type: "pigment", from: 3.6, to: 8.4, strength: 0.75 }]
   }
 ];
 

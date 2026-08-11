@@ -185,35 +185,172 @@
   var secCanvas = document.createElement("canvas");
   var sctx = secCanvas.getContext("2d");
 
+  // diffuse tissue changes are blurred; discrete structures (vessels, processes,
+  // precipitates, devices) must stay crisp, so they are drawn after the blur
+  var SHARP = { vessels: 1, processes: 1, kp: 1, laser: 1, stent: 1, dialysis: 1 };
+
   function drawSectors(g) {
     if (!SECTORS.length) return;
-    var dpr = Math.min(window.devicePixelRatio || 1, 2);
-    if (secCanvas.width !== canvas.width || secCanvas.height !== canvas.height) {
-      secCanvas.width = canvas.width; secCanvas.height = canvas.height;
+    var soft = [], sharp = [], i;
+    for (i = 0; i < SECTORS.length; i++)
+      (SHARP[SECTORS[i].type] ? sharp : soft).push(SECTORS[i]);
+
+    if (soft.length) {
+      var dpr = Math.min(window.devicePixelRatio || 1, 2);
+      if (secCanvas.width !== canvas.width || secCanvas.height !== canvas.height) {
+        secCanvas.width = canvas.width; secCanvas.height = canvas.height;
+      }
+      sctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+      sctx.clearRect(0, 0, g.cw, g.ch);
+      var keep = ctx; ctx = sctx;          // paint the wedges offscreen
+      paintSectors(g, soft);
+      ctx = keep;
+      ctx.save();
+      ctx.filter = "blur(" + Math.max(3, g.ch * 0.016).toFixed(1) + "px)";
+      ctx.drawImage(secCanvas, 0, 0, g.cw, g.ch);
+      ctx.restore();
     }
-    sctx.setTransform(dpr, 0, 0, dpr, 0, 0);
-    sctx.clearRect(0, 0, g.cw, g.ch);
-    var keep = ctx; ctx = sctx;            // paint the wedges offscreen
-    paintSectors(g);
-    ctx = keep;
+    for (i = 0; i < sharp.length; i++) paintFeature(g, sharp[i]);
+  }
+
+  /* ---- discrete angle features -------------------------------------- */
+  // point at radius r (fraction of disc half-width) and clock position `hour`
+  function polar(g, r, hour) {
+    var a = hour / HOURS * TWO_PI;
+    return [g.px + r * g.unit * Math.sin(a), g.py - r * g.unit * Math.cos(a)];
+  }
+  // deterministic PRNG so features don't shimmer between frames
+  function rng(seed) {
+    var s = (seed >>> 0) || 1;
+    return function () { s = (s * 1664525 + 1013904223) >>> 0; return s / 4294967296; };
+  }
+  function moveToP(p) { ctx.moveTo(p[0], p[1]); }
+  function lineToP(p) { ctx.lineTo(p[0], p[1]); }
+
+  function paintFeature(g, s) {
+    var S = DEFAULT_STRUCTURES, rand = rng(s.seed || 7), n, i, h, span = s.to - s.from;
+    // stroke weights are sized from the stage, not the (much larger) disc radius
+    var hair = Math.max(0.7, g.ch * 0.0016);
     ctx.save();
-    ctx.filter = "blur(" + Math.max(3, g.ch * 0.016).toFixed(1) + "px)";
-    ctx.drawImage(secCanvas, 0, 0, g.cw, g.ch);
+    ctx.lineCap = "round";
+    ctx.lineJoin = "round";
+
+    if (s.type === "vessels") {
+      // neovascular tufts: fine, delicate, branching, crossing the scleral spur
+      n = Math.max(8, Math.round(span * (s.density || 9)));
+      for (i = 0; i < n; i++) {
+        h = s.from + rand() * span;
+        var rA = S[1].rIn - 0.01 + rand() * 0.02;       // arising over the ciliary band
+        var rB = S[3].rIn + 0.012 + rand() * 0.03;      // reaching the meshwork
+        var wob = (rand() - 0.5) * 0.10;
+        ctx.strokeStyle = "rgba(178,52,44," + (0.5 + rand() * 0.3).toFixed(2) + ")";
+        ctx.lineWidth = hair * (0.9 + rand() * 0.5);
+        ctx.beginPath();
+        moveToP(polar(g, rA, h));
+        ctx.quadraticCurveTo.apply(ctx,
+          polar(g, (rA + rB) / 2, h + wob).concat(polar(g, rB, h + wob * 0.3)));
+        ctx.stroke();
+        if (rand() < 0.5) {                             // a short branch
+          ctx.lineWidth = hair * 0.7;
+          ctx.beginPath();
+          moveToP(polar(g, rA + (rB - rA) * 0.55, h + wob * 0.6));
+          lineToP(polar(g, rB - 0.012, h + wob * 0.6 + (rand() - 0.5) * 0.18));
+          ctx.stroke();
+        }
+      }
+    } else if (s.type === "processes") {
+      // iris processes: delicate lacy strands following the concavity of the recess
+      n = Math.max(10, Math.round(span * (s.density || 14)));
+      for (i = 0; i < n; i++) {
+        h = s.from + rand() * span;
+        ctx.strokeStyle = s.dark
+          ? "rgba(58,36,20," + (0.55 + rand() * 0.3).toFixed(2) + ")"
+          : "rgba(146,124,96," + (0.35 + rand() * 0.28).toFixed(2) + ")";
+        ctx.lineWidth = hair * (0.7 + rand() * 0.5);
+        ctx.beginPath();
+        moveToP(polar(g, S[0].rOut - 0.012, h));
+        lineToP(polar(g, S[1].rOut + rand() * (S[2].rOut - S[1].rOut), h + (rand() - 0.5) * 0.06));
+        ctx.stroke();
+      }
+    } else if (s.type === "kp") {
+      // inflammatory precipitates sitting on the meshwork
+      n = Math.max(8, Math.round(span * (s.density || 10)));
+      for (i = 0; i < n; i++) {
+        h = s.from + rand() * span;
+        var rr = S[3].rIn + rand() * (S[4].rIn - S[3].rIn);
+        var p = polar(g, rr, h), rad = hair * (1.4 + rand() * 1.6);
+        ctx.fillStyle = "rgba(226,219,202," + (0.45 + rand() * 0.35).toFixed(2) + ")";
+        ctx.beginPath(); ctx.arc(p[0], p[1], rad, 0, TWO_PI); ctx.fill();
+      }
+    } else if (s.type === "laser") {
+      // trabeculoplasty burns evenly spaced along the anterior pigmented meshwork
+      n = Math.max(4, Math.round(span * (s.density || 6)));
+      for (i = 0; i < n; i++) {
+        h = s.from + (i + 0.5) / n * span;
+        var pb = polar(g, S[3].rIn + (S[3].rOut - S[3].rIn) * 0.35, h), rb = hair * 2.2;
+        ctx.fillStyle = "rgba(244,238,224,0.5)";
+        ctx.beginPath(); ctx.arc(pb[0], pb[1], rb, 0, TWO_PI); ctx.fill();
+        ctx.strokeStyle = "rgba(86,58,32,0.45)"; ctx.lineWidth = hair * 0.6;
+        ctx.beginPath(); ctx.arc(pb[0], pb[1], rb, 0, TWO_PI); ctx.stroke();
+      }
+    } else if (s.type === "stent") {
+      // a trabecular bypass device seated across the meshwork
+      var mid = (s.from + s.to) / 2;
+      var a1 = polar(g, S[3].rIn + 0.006, s.from), a2 = polar(g, S[3].rIn + 0.006, s.to);
+      ctx.strokeStyle = "rgba(226,231,238,0.95)"; ctx.lineWidth = hair * 3.4;
+      ctx.beginPath(); moveToP(a1); lineToP(a2); ctx.stroke();
+      ctx.strokeStyle = "rgba(108,120,136,0.85)"; ctx.lineWidth = hair * 1.1;
+      ctx.beginPath(); moveToP(a1); lineToP(a2); ctx.stroke();
+      ctx.strokeStyle = "rgba(214,221,230,0.9)"; ctx.lineWidth = hair * 2;
+      ctx.beginPath();
+      moveToP(polar(g, S[3].rIn - 0.022, mid)); lineToP(polar(g, S[3].rIn + 0.012, mid));
+      ctx.stroke();
+    } else if (s.type === "dialysis") {
+      // iris root torn away: a dark gap at the recess with the ciliary processes
+      // seen through it as irregular pale ridges
+      var dIn = S[0].rOut - 0.028, dOut = S[1].rOut + 0.002;
+      sectorPath(g, dIn, dOut, s.from, s.to);
+      ctx.save(); ctx.clip();
+      var dg = ctx.createRadialGradient(g.px, g.py, dIn * g.unit, g.px, g.py, dOut * g.unit);
+      dg.addColorStop(0, "rgba(16,10,6,0)");
+      dg.addColorStop(0.28, "rgba(16,10,6,0.92)");
+      dg.addColorStop(0.86, "rgba(20,13,8,0.9)");
+      dg.addColorStop(1, "rgba(24,16,10,0)");
+      ctx.fillStyle = dg;
+      ctx.fillRect(0, 0, g.cw, g.ch);
+      // ciliary processes: irregular in width, spacing and length
+      var pos2 = 0.04;
+      while (pos2 < 0.96) {
+        h = s.from + pos2 * span;
+        var len = 0.34 + rand() * 0.22, top = 0.82 + rand() * 0.1;
+        ctx.strokeStyle = "rgba(202,176,140," + (0.5 + rand() * 0.4).toFixed(2) + ")";
+        ctx.lineWidth = hair * (3.2 + rand() * 2.4);
+        ctx.beginPath();
+        moveToP(polar(g, dIn + (dOut - dIn) * (top - len), h));
+        lineToP(polar(g, dIn + (dOut - dIn) * top, h));
+        ctx.stroke();
+        pos2 += 0.035 + rand() * 0.04;
+      }
+      ctx.restore();
+    }
     ctx.restore();
   }
 
-  function paintSectors(g) {
-    for (var i = 0; i < SECTORS.length; i++) {
-      var s = SECTORS[i];
+  function paintSectors(g, list) {
+    for (var i = 0; i < list.length; i++) {
+      var s = list[i];
       // pigment bands sit on the meshwork; PAS sweep up from the iris to
       // whichever structure they reach (`reach` = structure index)
-      var isPig = (s.type === "pigment"), isPale = (s.type === "pale");
+      var isPig = (s.type === "pigment"), isPale = (s.type === "pale"),
+          isBlood = (s.type === "blood");
       var rIn = (s.rIn != null) ? s.rIn
               : isPig ? DEFAULT_STRUCTURES[3].rIn
+              : isBlood ? DEFAULT_STRUCTURES[2].rIn
               : isPale ? DEFAULT_STRUCTURES[1].rIn : STRUCTURES[0].rIn;
       var rOut = (s.rOut != null) ? s.rOut
                : (s.reach != null) ? DEFAULT_STRUCTURES[s.reach].rOut
                : isPig ? DEFAULT_STRUCTURES[4].rIn
+               : isBlood ? DEFAULT_STRUCTURES[4].rIn
                : isPale ? DEFAULT_STRUCTURES[2].rOut : DEFAULT_STRUCTURES[4].rOut;
       var aMul = (s.strength != null) ? s.strength : 1;
       {
@@ -225,6 +362,12 @@
           grad.addColorStop(0.3, "rgba(232,226,214," + (0.85 * aMul).toFixed(3) + ")");
           grad.addColorStop(0.8, "rgba(240,236,227," + (0.9 * aMul).toFixed(3) + ")");
           grad.addColorStop(1, "rgba(228,222,210,0)");
+        } else if (isBlood) {
+          // blood layered on the meshwork, settling inferiorly under gravity
+          grad.addColorStop(0, "rgba(126,16,14,0)");
+          grad.addColorStop(0.3, "rgba(146,20,18," + (0.88 * aMul).toFixed(3) + ")");
+          grad.addColorStop(0.85, "rgba(168,32,26," + (0.8 * aMul).toFixed(3) + ")");
+          grad.addColorStop(1, "rgba(150,24,20,0)");
         } else if (s.type === "pigment") {
           // heavy pigment banding over the meshwork
           grad.addColorStop(0, "rgba(48,26,10,0)");
