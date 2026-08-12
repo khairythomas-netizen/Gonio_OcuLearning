@@ -35,6 +35,12 @@
 
   // goniolens tilt: -1 (away) … 0 (straight on) … +1 (tilted toward the angle)
   var tilt = 0;                      // goniolens tilt, -1 … +1 (see geom)
+  // the one place tilt changes, so the wheel and the slider behave identically
+  function setTiltValue(t) {
+    t = Math.max(-1, Math.min(1, t));
+    if (t === tilt) return;
+    tilt = t; if (tiltCb) tiltCb(tilt);
+  }
   var tiltCb = null;
 
   // sectoral findings drawn in eye-space (fixed to the clock, not to the view)
@@ -610,7 +616,10 @@
   // is independent of which disc image is currently loading
   function start() { resize(); requestAnimationFrame(tick); }
 
-  /* ---- input: drag + wheel to spin --------------------------------- */
+  /* ---- input ---------------------------------------------------------
+     Travelling round the clock is done by dragging the view, by the scrub bar
+     under it, or by the dial's knob. The wheel is given over to the goniolens
+     tilt, so scrolling leans the lens rather than spinning the eye. */
   var dragging = false, lastX = 0;
   var PX_PER_HOUR = 95;   // horizontal pixels per clock hour
 
@@ -627,11 +636,38 @@
   function endDrag() { if (dragging) { dragging = false; stage.classList.remove("dragging"); } }
   stage.addEventListener("pointerup", endDrag);
   stage.addEventListener("pointercancel", endDrag);
+  // The wheel tilts the lens: scroll up to lean toward the angle. Once the tilt
+  // is against its stop the event is left alone, so the page scrolls on past
+  // instead of the simulator swallowing the wheel and trapping the reader.
   stage.addEventListener("wheel", function (e) {
-    e.preventDefault();
     var d = Math.abs(e.deltaX) > Math.abs(e.deltaY) ? e.deltaX : e.deltaY;
-    vel += d * 0.0022;
+    var next = Math.max(-1, Math.min(1, tilt - d * 0.0016));
+    if (next === tilt) return;
+    e.preventDefault();
+    setTiltValue(next);
   }, { passive: false });
+
+  /* ---- scrub bar under the view: drag it to travel round the clock --- */
+  var trackEl = document.getElementById("track");
+  if (trackEl) {
+    var scrubbing = false;
+    var posFromTrack = function (e) {
+      var r = trackEl.getBoundingClientRect();
+      var f = (e.clientX - r.left) / r.width;
+      pos = (f < 0 ? 0 : f > 1 ? 1 : f) * HOURS; vel = 0;
+    };
+    trackEl.addEventListener("pointerdown", function (e) {
+      scrubbing = true; frozen = true;          // hold exactly where the grip is
+      try { trackEl.setPointerCapture(e.pointerId); } catch (err) {}
+      posFromTrack(e); e.stopPropagation(); e.preventDefault();
+    });
+    trackEl.addEventListener("pointermove", function (e) {
+      if (scrubbing) { posFromTrack(e); e.stopPropagation(); }
+    });
+    var endScrub = function () { if (scrubbing) { scrubbing = false; frozen = false; } };
+    trackEl.addEventListener("pointerup", endScrub);
+    trackEl.addEventListener("pointercancel", endScrub);
+  }
 
   /* ---- hover-to-glow ----------------------------------------------- */
   stage.addEventListener("mousemove", function (e) {
@@ -708,9 +744,7 @@
     setSectors: function (arr) { SECTORS = (arr && arr.length) ? arr.slice() : []; },
     // goniolens tilt, -1 … +1 (positive = tilted toward the angle under view)
     setTilt: function (t) {
-      t = Math.max(-1, Math.min(1, t || 0));
-      if (t === tilt) return;
-      tilt = t; if (tiltCb) tiltCb(tilt);
+      setTiltValue(t || 0);
     },
     getTilt: function () { return tilt; },
     onTilt: function (cb) { tiltCb = cb; },

@@ -19,9 +19,12 @@
   #hud { position: absolute; left: 0; right: 0; bottom: 0; padding: 14px 18px 16px; pointer-events: none;
     background: linear-gradient(to top, rgba(0,0,0,0.5), transparent); }
   #label { color: #f2f2f2; font-size: 14px; font-weight: 500; text-align: center; margin-bottom: 8px; }
-  #track { position: relative; height: 4px; border-radius: 2px; background: rgba(255,255,255,0.18);
-    max-width: 420px; margin: 0 auto; }
-  #fill { position: absolute; left: 0; top: 0; height: 100%; border-radius: 2px; background: rgba(255,255,255,0.85); width: 0; }
+  #track { position: relative; height: 5px; border-radius: 3px; background: rgba(255,255,255,0.18);
+    max-width: 420px; margin: 0 auto; pointer-events: auto; cursor: ew-resize;
+    touch-action: none; transition: height .12s, background .12s; }
+  #track::before { content: ""; position: absolute; inset: -11px 0; }  /* grab area */
+  #track:hover { height: 7px; background: rgba(255,255,255,0.28); }
+  #fill { position: absolute; left: 0; top: 0; height: 100%; border-radius: 3px; background: rgba(255,255,255,0.85); width: 0; }
   #hint { color: rgba(255,255,255,0.5); font-size: 11px; text-align: center; margin-top: 8px; }
   #hoverlabel { position: fixed; transform: translate(14px, -50%); pointer-events: none; padding: 4px 9px;
     border-radius: 6px; font-size: 12px; font-weight: 500; color: #fff; background: rgba(20,20,22,0.82);
@@ -90,7 +93,7 @@
       <div id="hud">
         <div id="label">—</div>
         <div id="track"><div id="fill"></div></div>
-        <div id="hint">drag or scroll to travel around the angle</div>
+        <div id="hint">drag the view or the bar to travel around the angle &middot; scroll to tilt the lens</div>
       </div>
     </div>
     <div class="stage-controls">
@@ -116,6 +119,7 @@
         <input type="range" id="tilt-range" min="-100" max="100" value="0" step="1"
                aria-label="Goniolens tilt">
         <div class="tilt-scale"><span>away</span><span>straight on</span><span>toward angle</span></div>
+        <div class="tilt-hint">or scroll over the view</div>
         <div class="tilt-caption" id="tilt-caption">Straight on — the natural, worst-case view.</div>
         <button id="tilt-reset" class="tilt-reset">Reset tilt</button>
       </div>
