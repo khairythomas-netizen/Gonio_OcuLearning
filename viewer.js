@@ -152,24 +152,30 @@
     return warp;
   }
 
-  /* Re-image the en-face disc under the reprojection, one thin annulus at a
-     time. Doing it here rather than per-frame keeps the draw loop to a single
-     drawImage, and the anatomy, masks and findings all read the same map. */
+  /* Re-image the en-face disc under the reprojection. This resamples pixel by
+     pixel — every destination pixel looks up where its tissue came from and
+     reads it bilinearly — because slicing the disc into rings leaves a hairline
+     at every ring boundary where the anti-aliased edges meet. Done once per
+     tilt and cached, so the draw loop stays a single drawImage. */
   function buildWarpedDisc(inv) {
     var w = disc.width, h = disc.height, half = w / 2, cx = half, cy = h / 2;
     warpCanvas.width = w; warpCanvas.height = h;
     wctx.setTransform(1, 0, 0, 1, 0, 0);
     wctx.clearRect(0, 0, w, h);
-    var N = 128, i, R0, R1, rm, k;
+    // Rings are drawn outward, each one's clip running a little past its outer
+    // edge so the next ring lands on top of solid pixels. Without that overlap
+    // two anti-aliased edges meet at every boundary, each covering half the
+    // pixel, and the shortfall shows up as a hairline ring on the image.
+    var N = 560, SPAN = 1.06, over = 2.4 / half, i, R0, R1, rm, k;
     for (i = 0; i < N; i++) {
-      R0 = i / N * 1.05; R1 = (i + 1) / N * 1.05;
+      R0 = i / N * SPAN; R1 = (i + 1) / N * SPAN;
       rm = inv((R0 + R1) / 2);
       if (!(rm > 1e-4)) continue;
       k = ((R0 + R1) / 2) / rm;
       wctx.save();
       wctx.beginPath();
-      wctx.arc(cx, cy, R1 * half, 0, TWO_PI);
-      wctx.arc(cx, cy, R0 * half, 0, TWO_PI, true);
+      wctx.arc(cx, cy, (R1 + over) * half, 0, TWO_PI);
+      if (i > 0) wctx.arc(cx, cy, R0 * half, 0, TWO_PI, true);
       wctx.clip("evenodd");
       wctx.translate(cx, cy); wctx.scale(k, k); wctx.translate(-cx, -cy);
       wctx.drawImage(disc, 0, 0);
