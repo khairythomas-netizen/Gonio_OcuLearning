@@ -95,6 +95,9 @@
       opened = (t > 0.7) ? 2 : 1;
       deepest = Math.max(1, deepest - opened);
     }
+    // A case can expose masks its grading would otherwise cover, for discs that
+    // plainly show a structure the Shaffer insertion says you would not identify.
+    if (currentCase.masksDownTo != null) deepest = Math.min(deepest, currentCase.masksDownTo);
     V.setDeepest(deepest);
     var items = list.children;
     for (var i = 0; i < items.length; i++) {

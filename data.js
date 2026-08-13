@@ -113,13 +113,10 @@ Gonio.CASES = [
   {
     id: "normal", group: null, disc: "disc.png",
     name: "Normal open angle",
-    description: "A healthy open angle. Note the normal variation around the clock: the inferior angle is widest and most heavily pigmented, the lateral quadrants are narrower, and the superior angle is narrowest — which is why every quadrant must be examined.",
+    description: "A healthy open angle, with the ciliary body band visible all the way round. Pigment still varies with the clock — heaviest inferiorly, where it settles under gravity — so every quadrant is worth examining.",
     clockHours: makeClockHours(
       { insertion: "cb", contour: "flat", pigment: 1, pasBridge: false, vessels: false, sampaolesi: false },
-      {  // superior angle normally narrowest, inferior widest and most pigmented
-        11: { insertion: "spur" }, 12: { insertion: "spur" }, 1: { insertion: "spur" },
-        5:  { pigment: 2 }, 6: { pigment: 2 }, 7: { pigment: 2 }
-      }
+      { 5: { pigment: 2 }, 6: { pigment: 2 }, 7: { pigment: 2 } }   // settles inferiorly
     ),
     sectors: [{ type: "pigment", from: 4.6, to: 7.4, strength: 0.42 }]
   },
@@ -162,7 +159,8 @@ Gonio.CASES = [
   {
     id: "closure_g3", group: "Angle closure — Shaffer grade", disc: "disc.png",
     name: "Grade 3 — Open",
-    description: "An open angle — the scleral spur is visible but the ciliary body band is not (Shaffer 3, 20–35°); closure is still impossible. Set this against the wide-open angle, where the full breadth of the ciliary body face comes into view.",
+    masksDownTo: 1,          // keep the ciliary band labelable — this disc shows it
+    description: "An open angle at 20–35°, where the scleral spur is the deepest landmark you would routinely call (Shaffer 3); closure is impossible. Only a narrow strip of ciliary body face shows here — set it against the wide-open angle, where the band is unmistakably broad.",
     clockHours: makeClockHours(
       { insertion: "spur", contour: "flat", pigment: 1, pasBridge: false, vessels: false, sampaolesi: false }
     )
