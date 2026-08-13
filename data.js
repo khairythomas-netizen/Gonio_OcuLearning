@@ -160,9 +160,9 @@ Gonio.CASES = [
     )
   },
   {
-    id: "closure_g3", group: "Angle closure — Shaffer grade", disc: "closure_g3.png",
+    id: "closure_g3", group: "Angle closure — Shaffer grade", disc: "disc.png",
     name: "Grade 3 — Open",
-    description: "An open angle — scleral spur visible, ciliary body band not seen (Shaffer 3).",
+    description: "An open angle — the scleral spur is visible but the ciliary body band is not (Shaffer 3, 20–35°); closure is still impossible. Set this against the wide-open angle, where the full breadth of the ciliary body face comes into view.",
     clockHours: makeClockHours(
       { insertion: "spur", contour: "flat", pigment: 1, pasBridge: false, vessels: false, sampaolesi: false }
     )
