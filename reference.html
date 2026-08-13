@@ -1,0 +1,154 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<title>Normal open angle — labelled mask reference</title>
+<link href="https://fonts.googleapis.com/css2?family=Spectral:wght@600;700&display=swap" rel="stylesheet">
+<style>
+  html,body { margin:0; background:#f4f1ea; }
+  canvas { display:block; }
+</style>
+</head>
+<body>
+<canvas id="ref" width="1760" height="1120"></canvas>
+<script>
+/* Labelled anatomy reference for the normal open angle, drawn with the same
+   disc, framing and mask radii the simulator uses (viewer.js). All six masks
+   are shown, ordered on the page exactly as they sit in the eye: cornea at the
+   top, iris root at the bottom. */
+var PUPIL_CY = 2.3, DISC_ZOOM = 3.85, TWO_PI = Math.PI * 2;
+
+// posterior → anterior, as in viewer.js
+var STRUCTURES = [
+  { name:"Iris",                rIn:0.54,  rOut:0.735, col:"#f59f0b",
+    note:"Iris root and its insertion into the ciliary body face — the angle recess. Its level sets the Shaffer grade." },
+  { name:"Ciliary body band",   rIn:0.735, rOut:0.786, col:"#22c55e",
+    note:"Light-grey to dark-brown band between the spur and the iris root. Seen only in wide-open angles — broader still in the wide-open (Shaffer 4) case." },
+  { name:"Scleral spur",        rIn:0.786, rOut:0.802, col:"#06b6d4",
+    note:"The sharpest landmark — a white to light-grey ridge marking the posterior border of the meshwork." },
+  { name:"Trabecular meshwork", rIn:0.802, rOut:0.858, col:"#d946ef",
+    note:"Carries ~90% of aqueous outflow. Its posterior part overlies Schlemm's canal and pigments with age, heaviest inferiorly." },
+  { name:"Schwalbe's line",     rIn:0.846, rOut:0.872, col:"#ef4444",
+    note:"Anterior border of the meshwork — the termination of Descemet's membrane. Pigment can settle here as a Sampaolesi line." },
+  { name:"Cornea",              rIn:0.878, rOut:0.99,  col:"#3b82f6",
+    note:"Clear cornea anterior to Schwalbe's line. The corneal wedge pinpoints the angle." }
+];
+
+var cv = document.getElementById("ref"), ctx = cv.getContext("2d");
+var W = cv.width, H = cv.height, PANEL = 600, VW = W - PANEL;
+
+var disc = new Image();
+disc.onload = draw;
+disc.src = "disc.png";
+
+function draw() {
+  ctx.fillStyle = "#f4f1ea"; ctx.fillRect(0, 0, W, H);
+
+  var pad = 30, vx = pad, vy = pad, vw = VW - pad * 1.6, vh = H - pad * 2;
+  // normalised by the source width, as viewer.js does, so the framing holds
+  // whatever resolution the disc was exported at
+  var sc = DISC_ZOOM * vh / 1000 * (1254 / disc.width);
+  var unit = (disc.width / 2) * sc;
+  var px = vx + vw / 2, py = vy + PUPIL_CY * vh;      // pupil sits below the frame
+  var fh = vh * 0.94;   // stop short of the iris mask's inner edge
+
+  ctx.save();
+  roundRect(vx, vy, vw, fh, 16); ctx.clip();
+  ctx.fillStyle = "#000"; ctx.fillRect(vx, vy, vw, fh);
+  ctx.save();
+  ctx.translate(px, py); ctx.scale(sc, sc);
+  ctx.drawImage(disc, -disc.width / 2, -disc.height / 2);
+  ctx.restore();
+
+  STRUCTURES.forEach(function (s) {                    // tint each band
+    ctx.fillStyle = hexA(s.col, 0.36);
+    ctx.beginPath();
+    ctx.arc(px, py, s.rOut * unit, 0, TWO_PI);
+    ctx.arc(px, py, s.rIn * unit, 0, TWO_PI, true);
+    ctx.fill("evenodd");
+  });
+  ctx.strokeStyle = "rgba(255,255,255,0.55)"; ctx.lineWidth = 1.3;
+  STRUCTURES.forEach(function (s) {
+    ctx.beginPath(); ctx.arc(px, py, s.rIn * unit, 0, TWO_PI); ctx.stroke();
+  });
+  ctx.restore();
+
+  /* Anchor each label on the band itself, off to one side of the arc, then
+     order the rows by that height. Nested arcs keep their order at any given
+     x, so the leaders stay parallel and never cross. */
+  var ax = px + vw * 0.30;
+  var rows = STRUCTURES.map(function (s, i) {
+    var R = (s.rIn + s.rOut) / 2 * unit, dx = ax - px;
+    return { s: s, i: i, ax: ax, ay: py - Math.sqrt(Math.max(1, R * R - dx * dx)) };
+  }).sort(function (a, b) { return a.ay - b.ay; });    // cornea first, iris last
+
+  // Rows sit at their band's height where there is room, but never closer than
+  // GAP apart; if the stack would then run past the footnote it is lifted whole,
+  // so the order stays and nothing collides.
+  var GAP = 156, ROW_H = 150, y = 104;
+  rows.forEach(function (r) { r.ly = y = Math.max(y, r.ay - 26); y += GAP; });
+  var over = (rows[rows.length - 1].ly + ROW_H) - (H - 96);
+  if (over > 0) {
+    var lift = Math.min(over, rows[0].ly - 104);
+    rows.forEach(function (r) { r.ly -= lift; });
+  }
+
+  rows.forEach(function (r) {                          // leaders
+    ctx.strokeStyle = r.s.col; ctx.lineWidth = 2.6;
+    ctx.beginPath();
+    ctx.moveTo(r.ax, r.ay);
+    ctx.lineTo(VW - 46, r.ly + 22);
+    ctx.lineTo(VW - 8, r.ly + 22);
+    ctx.stroke();
+    ctx.fillStyle = r.s.col;
+    ctx.beginPath(); ctx.arc(r.ax, r.ay, 7, 0, TWO_PI); ctx.fill();
+    ctx.strokeStyle = "#fff"; ctx.lineWidth = 2.2;
+    ctx.beginPath(); ctx.arc(r.ax, r.ay, 7, 0, TWO_PI); ctx.stroke();
+  });
+
+  ctx.textBaseline = "top";
+  ctx.fillStyle = "#1b3a5c"; ctx.font = "700 36px Spectral, Georgia, serif";
+  ctx.fillText("Normal open angle", VW + 8, 28);
+  ctx.fillStyle = "#6c6c6c"; ctx.font = "16px -apple-system, Helvetica, Arial, sans-serif";
+  ctx.fillText("All six anatomy masks, anterior (top) to posterior (bottom)", VW + 8, 72);
+
+  rows.forEach(function (r) {
+    var s = r.s, ly = r.ly;
+    ctx.fillStyle = s.col; roundRect(VW + 8, ly + 6, 6, 96, 3); ctx.fill();
+    ctx.fillStyle = "#1b3a5c"; ctx.font = "700 24px -apple-system, Helvetica, Arial, sans-serif";
+    ctx.fillText(s.name, VW + 28, ly + 2);
+    ctx.fillStyle = "#9a9a9a"; ctx.font = "14px ui-monospace, Menlo, monospace";
+    ctx.fillText("r " + s.rIn.toFixed(3) + " – " + s.rOut.toFixed(3), VW + 28, ly + 32);
+    ctx.fillStyle = "#4a4a4a"; ctx.font = "15px -apple-system, Helvetica, Arial, sans-serif";
+    wrap(s.note, VW + 28, ly + 56, PANEL - 56, 20);
+  });
+
+  ctx.fillStyle = "#8a8a8a"; ctx.font = "italic 13px -apple-system, Helvetica, Arial, sans-serif";
+  wrap("Radii are fractions of the disc half-width, measured from the pupil centre. " +
+       "Schwalbe's line overlaps the meshwork slightly; in the overlap the hover resolves " +
+       "to the more anterior structure.", VW + 8, H - 62, PANEL - 34, 19);
+  document.title = "ready";
+}
+
+function wrap(text, x, y, maxW, lh) {
+  var words = text.split(" "), line = "", yy = y;
+  for (var i = 0; i < words.length; i++) {
+    var t = line ? line + " " + words[i] : words[i];
+    if (ctx.measureText(t).width > maxW && line) { ctx.fillText(line, x, yy); line = words[i]; yy += lh; }
+    else line = t;
+  }
+  if (line) ctx.fillText(line, x, yy);
+}
+function roundRect(x, y, w, h, r) {
+  ctx.beginPath();
+  ctx.moveTo(x + r, y); ctx.arcTo(x + w, y, x + w, y + h, r);
+  ctx.arcTo(x + w, y + h, x, y + h, r); ctx.arcTo(x, y + h, x, y, r);
+  ctx.arcTo(x, y, x + w, y, r); ctx.closePath();
+}
+function hexA(hex, a) {
+  var n = parseInt(hex.slice(1), 16);
+  return "rgba(" + ((n >> 16) & 255) + "," + ((n >> 8) & 255) + "," + (n & 255) + "," + a + ")";
+}
+</script>
+</body>
+</html>

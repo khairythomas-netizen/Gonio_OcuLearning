@@ -61,6 +61,7 @@
   function setCase(id) {
     currentCase = Gonio.caseById(id);
     V.setDiscImage(currentCase.disc);        // swap to this case's disc
+    V.setBaseStructures(currentCase.masks);  // per-disc mask baseline, if it needs one
     V.setSectors(currentCase.sectors);       // sectoral findings, fixed to the clock
     applyVisibility();                       // show only the layers present in this case
     $("case-desc").textContent = currentCase.description;

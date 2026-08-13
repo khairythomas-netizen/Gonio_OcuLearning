@@ -30,7 +30,15 @@
   var PUPIL_CY = 2.3;      // disc-centre y (frac of height) at 12 o'clock
   var ORBIT_CY = 0.5;      // the view orbits about this point (frac of height)
   var DISC_ZOOM = 3.85;    // disc scale per 1000px of stage height (stage-independent)
-  function discScale() { return DISC_ZOOM * stage.clientHeight / 1000; }
+  /* The framing constants were tuned against a 1254px disc, and every radius in
+     the app is a fraction of the disc half-width. Normalising by the source
+     width keeps a disc the same size on screen whatever resolution it was
+     exported at — a sharper export then just looks sharper, instead of
+     rescaling the whole view and dragging the masks off the anatomy. */
+  var REF_DISC_W = 1254;
+  function discScale() {
+    return DISC_ZOOM * stage.clientHeight / 1000 * (REF_DISC_W / (disc.width || REF_DISC_W));
+  }
   var DISC_DIR = 1;        // spin direction
 
   // goniolens tilt: -1 (away) … 0 (straight on) … +1 (tilted toward the angle)
@@ -48,14 +56,16 @@
 
   // structures as concentric bands, radius in fractions of the disc half-width
   var STRUCTURES = [
-    { name: "Iris",                rIn: 0.54, rOut: 0.72 },
-    { name: "Ciliary body band",   rIn: 0.72, rOut: 0.786 },
+    { name: "Iris",                rIn: 0.54, rOut: 0.735 },
+    { name: "Ciliary body band",   rIn: 0.735, rOut: 0.786 },
     { name: "Scleral spur",        rIn: 0.786, rOut: 0.802 },
     { name: "Trabecular meshwork", rIn: 0.802, rOut: 0.858 },
     { name: "Schwalbe's line",     rIn: 0.846, rOut: 0.872 },
     { name: "Cornea",              rIn: 0.878, rOut: 0.99 }
   ];
-  // default ring radii, restored when a case doesn't override the masks
+  // BASE is the library default; DEFAULT_STRUCTURES is the current case's
+  // baseline, which a case may override when its disc is drawn differently
+  var BASE_STRUCTURES = JSON.parse(JSON.stringify(STRUCTURES));
   var DEFAULT_STRUCTURES = JSON.parse(JSON.stringify(STRUCTURES));
   // which structures are currently present (some pathologies hide deeper layers)
   var activeMask = STRUCTURES.map(function () { return true; });
@@ -114,9 +124,15 @@
      view opens rather than sliding. */
   var TILT_MAX_RAD = 0.26;      // line-of-sight swing at full tilt (~15°)
   var WALL_Z = 0.17;            // axial climb, iris plane → cornea, in half-widths
-  var Z_R0 = 0.70, Z_R1 = 0.96; // over which radii the wall climbs
+  var Z_R1 = 0.96;              // where the climb levels off, at the cornea
+  /* The wall starts climbing at the angle recess — the iris/ciliary-band
+     junction — so the hinge is read from the masks rather than hard-coded.
+     Discs differ there (this normal angle sits at 0.735, the wide-open one at
+     0.720), and deriving it keeps the tilt hinged on the right band for each. */
+  function zR0() { return DEFAULT_STRUCTURES[0].rOut - 0.02; }
 
   function wallZ(r) {
+    var Z_R0 = zR0();
     var t = (r - Z_R0) / (Z_R1 - Z_R0);
     t = t < 0 ? 0 : t > 1 ? 1 : t;
     return WALL_Z * t * t * (3 - 2 * t);
@@ -736,6 +752,20 @@
       for (var i = 0; i < STRUCTURES.length; i++) {
         if (src[i]) { STRUCTURES[i].rIn = src[i].rIn; STRUCTURES[i].rOut = src[i].rOut; }
       }
+    },
+    /* Per-case baseline masks, for discs whose bands are not drawn at the
+       library's default radii. Pass null to go back to the default. The tilt
+       hinge follows from these, so the warp cache is dropped too. */
+    setBaseStructures: function (arr) {
+      var src = (arr && arr.length) ? arr : BASE_STRUCTURES;
+      DEFAULT_STRUCTURES = JSON.parse(JSON.stringify(BASE_STRUCTURES));
+      for (var i = 0; i < DEFAULT_STRUCTURES.length; i++) {
+        if (src[i]) {
+          if (src[i].rIn != null) DEFAULT_STRUCTURES[i].rIn = src[i].rIn;
+          if (src[i].rOut != null) DEFAULT_STRUCTURES[i].rOut = src[i].rOut;
+        }
+      }
+      warp.q = null;
     },
     // reveal structures only down to the deepest visible one (see setDeepest)
     setDeepest: function (d) { setDeepest(d); },
