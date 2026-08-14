@@ -167,8 +167,8 @@ Gonio.CASES = [
   },
   {
     id: "closure_g4", group: "Angle closure — Shaffer grade", disc: "wide_open.png",
-    // this disc draws the broad ciliary band starting at 0.720, not 0.735
-    masks: [{ rOut: 0.720 }, { rIn: 0.720 }],
+    // this disc's dark ciliary band sits further in, and is broader
+    masks: [{ rOut: 0.760 }, { rIn: 0.752 }],
     name: "Grade 4 — Wide open",
     description: "A wide-open angle — the full width of the ciliary body band is visible all the way round (Shaffer 4, 35–45°). Compare the band here with the narrower one in the normal angle: this breadth of ciliary body face is what marks the angle as wide open.",
     clockHours: makeClockHours(

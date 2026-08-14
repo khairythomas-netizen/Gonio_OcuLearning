@@ -56,8 +56,10 @@
 
   // structures as concentric bands, radius in fractions of the disc half-width
   var STRUCTURES = [
-    { name: "Iris",                rIn: 0.54, rOut: 0.735 },
-    { name: "Ciliary body band",   rIn: 0.735, rOut: 0.786 },
+    // the iris takes in all the orange tissue; the ciliary band is only the dark
+    // line between it and the scleral spur
+    { name: "Iris",                rIn: 0.54, rOut: 0.770 },
+    { name: "Ciliary body band",   rIn: 0.764, rOut: 0.786 },
     { name: "Scleral spur",        rIn: 0.786, rOut: 0.802 },
     { name: "Trabecular meshwork", rIn: 0.802, rOut: 0.858 },
     { name: "Schwalbe's line",     rIn: 0.846, rOut: 0.872 },
@@ -83,7 +85,10 @@
       STRUCTURES[i].rOut = DEFAULT_STRUCTURES[i].rOut;
       activeMask[i] = (i === 0) || (i >= deepest);
     }
-    STRUCTURES[0].rOut = DEFAULT_STRUCTURES[deepest].rIn;   // iris fills the covered zone
+    // The iris is stretched over whatever is covered — but only when something
+    // actually is. With the angle fully open it keeps its own outer edge, which
+    // deliberately laps over the ciliary band so the orange tissue reads as iris.
+    if (deepest > 1) STRUCTURES[0].rOut = DEFAULT_STRUCTURES[deepest].rIn;
     if (hoverStruct >= 0 && !activeMask[hoverStruct]) hoverStruct = -1;
   }
   var MASKS_ON = true;     // hover glow + floating name label (toggleable)
@@ -149,9 +154,22 @@
   var warpCanvas = document.createElement("canvas");
   var wctx = warpCanvas.getContext("2d");
 
-  function warpFor() {
+  /* geom() only ever reads the cached warp — it is called several times a frame
+     and on every mouse move, so it must never trigger a rebuild. */
+  function warpFor() { return warp; }
+
+  /* Rebuilding is instead thrown once per animation frame, from render(). A
+     wheel gesture fires far more events than there are frames, and each rebuild
+     used to run synchronously inside geom(), so a single scroll could stack up
+     dozens of full re-images and lock the page. Throttling to the frame means at
+     most one per paint, and the image, masks and findings still move together
+     because they all read this same cached profile. */
+  var warpDirty = true;
+  function refreshWarp() {
     var q = Math.round(tilt * 50) / 50;                  // quantised, so drags reuse
-    if (warp.q === q) return warp;
+    if (!warpDirty && warp.q === q) return;
+    warpDirty = false;
+    if (warp.q === q) return;
     var d = q * TILT_MAX_RAD, cd = Math.cos(d), sd = Math.sin(d);
     var rv = viewRadius();
     function raw(r) { return r * cd + wallZ(r) * sd; }
@@ -171,7 +189,6 @@
 
     warp.q = q; warp.W = W; warp.inv = inv;
     warp.canvas = (Math.abs(q) < 0.005 || !loaded) ? null : buildWarpedDisc(inv);
-    return warp;
   }
 
   /* Re-image the en-face disc under the reprojection. This resamples pixel by
@@ -181,7 +198,12 @@
      tilt and cached, so the draw loop stays a single drawImage. */
   function buildWarpedDisc(inv) {
     var w = disc.width, h = disc.height, half = w / 2, cx = half, cy = h / 2;
-    warpCanvas.width = w; warpCanvas.height = h;
+    // Resizing a canvas reallocates it — at 2475² that is ~24 MB thrown away and
+    // reclaimed on every tilt step, which on its own was enough to stall the
+    // page. Size it only when the disc actually changes; otherwise just clear.
+    if (warpCanvas.width !== w || warpCanvas.height !== h) {
+      warpCanvas.width = w; warpCanvas.height = h;
+    }
     wctx.setTransform(1, 0, 0, 1, 0, 0);
     wctx.clearRect(0, 0, w, h);
     // Rings are drawn outward, each one's clip running a little past its outer
@@ -189,7 +211,19 @@
     // two anti-aliased edges meet at every boundary, each covering half the
     // pixel, and the shortfall shows up as a hairline ring on the image.
     var N = 560, SPAN = 1.06, over = 2.4 / half, i, R0, R1, rm, k;
-    for (i = 0; i < N; i++) {
+    /* Only the outer part of the disc is ever on screen — the frame bottom sits
+       near r≈0.54 — and everything inside that is unlit pupil. Cover it with one
+       draw instead of ~200 rings; the map is linear there anyway, since the
+       angle wall has not started to climb. */
+    var INNER = 0.40;
+    k = INNER / inv(INNER);
+    wctx.save();
+    wctx.beginPath(); wctx.arc(cx, cy, (INNER + over) * half, 0, TWO_PI); wctx.clip();
+    wctx.translate(cx, cy); wctx.scale(k, k); wctx.translate(-cx, -cy);
+    wctx.drawImage(disc, 0, 0);
+    wctx.restore();
+
+    for (i = Math.floor(INNER / SPAN * N); i < N; i++) {
       R0 = i / N * SPAN; R1 = (i + 1) / N * SPAN;
       rm = inv((R0 + R1) / 2);
       if (!(rm > 1e-4)) continue;
@@ -254,9 +288,13 @@
     // masks stay locked to the anatomy at every tilt
     var g = geom(), rApp = Math.hypot(cx - g.px, cy - g.py) / g.unit;
     var r = g.w.inv ? g.w.inv(rApp) : rApp;
-    // iterate outermost→innermost so that where bands overlap the more
+    // The iris is tested first, so it wins wherever it overlaps the ciliary
+    // band: the band is only the dark line, and iris tissue lying in front of it
+    // should read as iris.
+    if (activeMask[0] && r >= STRUCTURES[0].rIn && r < STRUCTURES[0].rOut) return 0;
+    // otherwise iterate outermost→innermost, so where bands overlap the more
     // anterior structure (e.g. Schwalbe's line over TM) wins the hover
-    for (var i = STRUCTURES.length - 1; i >= 0; i--) {
+    for (var i = STRUCTURES.length - 1; i >= 1; i--) {
       if (!activeMask[i]) continue;                 // hidden in this pathology
       if (r >= STRUCTURES[i].rIn && r < STRUCTURES[i].rOut) return i;
     }
