@@ -190,8 +190,8 @@
 
     warp.q = q; warp.W = W; warp.inv = inv;
     if (Math.abs(q) < 0.005 || !loaded) { warp.canvas = null; return; }
-    var size = Math.min(WARP_MAX, disc.width);
-    warp.canvas = glWarp(inv, size) || buildWarpedDisc(inv);
+    // full resolution on the GPU; the 2-D fallback stays capped
+    warp.canvas = glWarp(inv, 0) || buildWarpedDisc(inv);
   }
 
   /* Re-image the en-face disc under the reprojection. This resamples pixel by
@@ -205,7 +205,15 @@
      against the 1254px one this was tuned on and the tilt took seconds to catch
      up. The cap holds that cost fixed — a sharper export still gives a sharper
      untilted view, since that draws the source image directly. */
+  /* The 2-D fallback stays capped, because its cost is in clip masks and it is
+     slow. The GPU path has no such problem, so it re-images at the disc's own
+     resolution — capping it there was what softened the tilted view against the
+     untilted one, which draws the source image directly. */
   var WARP_MAX = 1254;
+  function glSize() {
+    var lim = gl ? gl.getParameter(gl.MAX_TEXTURE_SIZE) : 4096;
+    return Math.min(disc.width || WARP_MAX, lim, 4096);
+  }
 
   /* ---- the reprojection on the GPU ---------------------------------------
      The radial remap is one texture lookup per pixel, which is exactly what a
@@ -272,8 +280,8 @@
      and it used to land on the very first nudge of the slider. */
   function glPrime() {
     if (glBroken || !loaded) return;
-    var size = Math.min(WARP_MAX, disc.width);
-    if (!initGL(size)) return;
+    if (!initGL(WARP_MAX)) return;            // context first, then size to the disc
+    var size = glSize();
     if (glCanvas.width !== size) { glCanvas.width = glCanvas.height = size; }
     gl.activeTexture(gl.TEXTURE0);
     gl.bindTexture(gl.TEXTURE_2D, glTex);
@@ -286,8 +294,9 @@
   }
 
   var GL_SPAN = 1.30;
-  function glWarp(inv, size) {
-    if (!initGL(size)) return null;
+  function glWarp(inv) {
+    if (!initGL(WARP_MAX)) return null;
+    var size = glSize();
     if (glCanvas.width !== size) { glCanvas.width = glCanvas.height = size; }
     gl.viewport(0, 0, size, size);
 
@@ -970,6 +979,12 @@
     onTilt: function (cb) { tiltCb = cb; },
     // force a frame (rAF is throttled when the tab is hidden)
     redraw: function () { render(); },
+    // what the tilt reprojection is actually running at
+    warpInfo: function () {
+      return { gpu: !!gl, broken: glBroken, discW: disc.width,
+               canvasW: warp.canvas ? warp.canvas.width : 0,
+               maxTexture: gl ? gl.getParameter(gl.MAX_TEXTURE_SIZE) : null };
+    },
     calibrate: function (on) { calibOn = on; DEBUG_RINGS = on; updateCalib(); },
     getStructures: function () { return JSON.parse(JSON.stringify(STRUCTURES)); },
     setStructureR: function (i, rIn, rOut) { STRUCTURES[i].rIn = rIn; STRUCTURES[i].rOut = rOut; },
