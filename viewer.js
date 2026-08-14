@@ -92,6 +92,9 @@
     if (hoverStruct >= 0 && !activeMask[hoverStruct]) hoverStruct = -1;
   }
   var MASKS_ON = true;     // hover glow + floating name label (toggleable)
+  // the name is separable from the glow: the label quiz keeps the highlight but
+  // hides the name, which would otherwise give the answer away
+  var NAME_ON = true;
   var hoverStruct = -1, DEBUG_RINGS = false;
   var hoverCb = null, hourCb = null, lastHour = -1;
 
@@ -99,7 +102,7 @@
   function hourLabel(p) { var h = ((Math.round(p) % HOURS) + HOURS) % HOURS; return LABELS[h] + " o'clock"; }
 
   function load() {
-    disc.onload = function () { loaded = true; warp.q = null; };
+    disc.onload = function () { loaded = true; warp.q = null; glPrime(); };
     disc.src = DISC_SRC + "?v=" + Date.now();
   }
 
@@ -186,7 +189,9 @@
     }
 
     warp.q = q; warp.W = W; warp.inv = inv;
-    warp.canvas = (Math.abs(q) < 0.005 || !loaded) ? null : buildWarpedDisc(inv);
+    if (Math.abs(q) < 0.005 || !loaded) { warp.canvas = null; return; }
+    var size = Math.min(WARP_MAX, disc.width);
+    warp.canvas = glWarp(inv, size) || buildWarpedDisc(inv);
   }
 
   /* Re-image the en-face disc under the reprojection. This resamples pixel by
@@ -194,33 +199,163 @@
      reads it bilinearly — because slicing the disc into rings leaves a hairline
      at every ring boundary where the anti-aliased edges meet. Done once per
      tilt and cached, so the draw loop stays a single drawImage. */
+  /* The build is capped in size regardless of how large the source disc is.
+     Each ring costs a clip and a draw, and the finished canvas is then blitted
+     every frame; both scale with area, so a 2475px export quadrupled the work
+     against the 1254px one this was tuned on and the tilt took seconds to catch
+     up. The cap holds that cost fixed — a sharper export still gives a sharper
+     untilted view, since that draws the source image directly. */
+  var WARP_MAX = 1254;
+
+  /* ---- the reprojection on the GPU ---------------------------------------
+     The radial remap is one texture lookup per pixel, which is exactly what a
+     fragment shader is for. Doing it with clipped rings on a 2-D canvas cost
+     600-800ms per tilt step — the clip masks, not the pixels, being the expense
+     — and that is what made the lens lag seconds behind the slider. Here it is
+     a single draw. The 2-D ring path below is kept as a fallback for anything
+     without WebGL. */
+  var glCanvas = document.createElement("canvas");
+  var gl = null, glProg = null, glTex = null, glLut = null, glTexKey = null, glBroken = false;
+
+  function initGL(size) {
+    if (gl || glBroken) return gl;
+    try {
+      glCanvas.width = glCanvas.height = size;
+      gl = glCanvas.getContext("webgl", { premultipliedAlpha: false, preserveDrawingBuffer: true })
+        || glCanvas.getContext("experimental-webgl", { premultipliedAlpha: false, preserveDrawingBuffer: true });
+      if (!gl) { glBroken = true; return null; }
+
+      var vs = "attribute vec2 a;varying vec2 v;void main(){v=a*0.5+0.5;gl_Position=vec4(a,0.0,1.0);}";
+      var fs =
+        "precision highp float;varying vec2 v;" +
+        "uniform sampler2D img;uniform sampler2D lut;uniform float span;" +
+        "void main(){" +
+        "  vec2 p=v-0.5;" +
+        "  float R=length(p)*2.0;" +                       // radius in half-widths
+        "  float t=clamp(R/span,0.0,1.0);" +
+        "  vec4 e=texture2D(lut,vec2(t,0.5));" +           // 16-bit inverse, R+G
+        "  float r=(e.r+e.g/255.0)*span;" +                // source radius
+        "  float k=R>1e-5?r/R:1.0;" +
+        "  vec2 s=p*k+0.5;" +
+        "  if(s.x<0.0||s.x>1.0||s.y<0.0||s.y>1.0){gl_FragColor=vec4(0.0);return;}" +
+        "  gl_FragColor=texture2D(img,s);" +
+        "}";
+      function sh(type, src) {
+        var o = gl.createShader(type); gl.shaderSource(o, src); gl.compileShader(o);
+        if (!gl.getShaderParameter(o, gl.COMPILE_STATUS)) throw new Error(gl.getShaderInfoLog(o));
+        return o;
+      }
+      glProg = gl.createProgram();
+      gl.attachShader(glProg, sh(gl.VERTEX_SHADER, vs));
+      gl.attachShader(glProg, sh(gl.FRAGMENT_SHADER, fs));
+      gl.linkProgram(glProg);
+      if (!gl.getProgramParameter(glProg, gl.LINK_STATUS)) throw new Error(gl.getProgramInfoLog(glProg));
+      gl.useProgram(glProg);
+
+      var buf = gl.createBuffer();
+      gl.bindBuffer(gl.ARRAY_BUFFER, buf);
+      gl.bufferData(gl.ARRAY_BUFFER, new Float32Array([-1, -1, 3, -1, -1, 3]), gl.STATIC_DRAW);
+      var loc = gl.getAttribLocation(glProg, "a");
+      gl.enableVertexAttribArray(loc);
+      gl.vertexAttribPointer(loc, 2, gl.FLOAT, false, 0, 0);
+
+      glTex = gl.createTexture(); glLut = gl.createTexture();
+      gl.pixelStorei(gl.UNPACK_FLIP_Y_WEBGL, true);
+      gl.uniform1i(gl.getUniformLocation(glProg, "img"), 0);
+      gl.uniform1i(gl.getUniformLocation(glProg, "lut"), 1);
+    } catch (e) { glBroken = true; gl = null; }
+    return gl;
+  }
+
+  /* Compile the shader and upload the disc as soon as it loads, rather than on
+     the first tilt. Uploading a 2475px texture costs the best part of a second,
+     and it used to land on the very first nudge of the slider. */
+  function glPrime() {
+    if (glBroken || !loaded) return;
+    var size = Math.min(WARP_MAX, disc.width);
+    if (!initGL(size)) return;
+    if (glCanvas.width !== size) { glCanvas.width = glCanvas.height = size; }
+    gl.activeTexture(gl.TEXTURE0);
+    gl.bindTexture(gl.TEXTURE_2D, glTex);
+    gl.texImage2D(gl.TEXTURE_2D, 0, gl.RGBA, gl.RGBA, gl.UNSIGNED_BYTE, disc);
+    gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MIN_FILTER, gl.LINEAR);
+    gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MAG_FILTER, gl.LINEAR);
+    gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_S, gl.CLAMP_TO_EDGE);
+    gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_T, gl.CLAMP_TO_EDGE);
+    glTexKey = disc.src;
+  }
+
+  var GL_SPAN = 1.30;
+  function glWarp(inv, size) {
+    if (!initGL(size)) return null;
+    if (glCanvas.width !== size) { glCanvas.width = glCanvas.height = size; }
+    gl.viewport(0, 0, size, size);
+
+    if (glTexKey !== disc.src) {                 // upload the disc once per swap
+      gl.activeTexture(gl.TEXTURE0);
+      gl.bindTexture(gl.TEXTURE_2D, glTex);
+      gl.texImage2D(gl.TEXTURE_2D, 0, gl.RGBA, gl.RGBA, gl.UNSIGNED_BYTE, disc);
+      gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MIN_FILTER, gl.LINEAR);
+      gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MAG_FILTER, gl.LINEAR);
+      gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_S, gl.CLAMP_TO_EDGE);
+      gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_T, gl.CLAMP_TO_EDGE);
+      glTexKey = disc.src;
+    }
+    // the inverse map as a 16-bit LUT: high byte in red, low byte in green
+    var M = 512, px = new Uint8Array(M * 4), i, u;
+    for (i = 0; i < M; i++) {
+      u = inv(i / (M - 1) * GL_SPAN) / GL_SPAN;
+      u = u < 0 ? 0 : u > 1 ? 1 : u;
+      var q = Math.round(u * 65535);
+      px[i * 4] = q >> 8; px[i * 4 + 1] = q & 255; px[i * 4 + 3] = 255;
+    }
+    gl.activeTexture(gl.TEXTURE1);
+    gl.bindTexture(gl.TEXTURE_2D, glLut);
+    gl.pixelStorei(gl.UNPACK_FLIP_Y_WEBGL, false);
+    gl.texImage2D(gl.TEXTURE_2D, 0, gl.RGBA, M, 1, 0, gl.RGBA, gl.UNSIGNED_BYTE, px);
+    gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MIN_FILTER, gl.NEAREST);
+    gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MAG_FILTER, gl.NEAREST);
+    gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_S, gl.CLAMP_TO_EDGE);
+    gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_T, gl.CLAMP_TO_EDGE);
+    gl.pixelStorei(gl.UNPACK_FLIP_Y_WEBGL, true);
+
+    gl.uniform1f(gl.getUniformLocation(glProg, "span"), GL_SPAN);
+    gl.clearColor(0, 0, 0, 0); gl.clear(gl.COLOR_BUFFER_BIT);
+    gl.drawArrays(gl.TRIANGLES, 0, 3);
+    return glCanvas;
+  }
+
   function buildWarpedDisc(inv) {
-    var w = disc.width, h = disc.height, half = w / 2, cx = half, cy = h / 2;
-    // Resizing a canvas reallocates it — at 2475² that is ~24 MB thrown away and
-    // reclaimed on every tilt step, which on its own was enough to stall the
-    // page. Size it only when the disc actually changes; otherwise just clear.
-    if (warpCanvas.width !== w || warpCanvas.height !== h) {
-      warpCanvas.width = w; warpCanvas.height = h;
+    var srcW = disc.width, srcH = disc.height;
+    var W = Math.min(WARP_MAX, srcW), half = W / 2, cx = half, cy = half;
+    var fit = W / srcW;                       // source → warp-canvas scale
+    if (warpCanvas.width !== W || warpCanvas.height !== W) {
+      // resizing reallocates the buffer, so only when the size really changes
+      warpCanvas.width = W; warpCanvas.height = W;
     }
     wctx.setTransform(1, 0, 0, 1, 0, 0);
-    wctx.clearRect(0, 0, w, h);
-    // Rings are drawn outward, each one's clip running a little past its outer
-    // edge so the next ring lands on top of solid pixels. Without that overlap
-    // two anti-aliased edges meet at every boundary, each covering half the
-    // pixel, and the shortfall shows up as a hairline ring on the image.
+    wctx.clearRect(0, 0, W, W);
+
     var N = 560, SPAN = 1.06, over = 2.4 / half, i, R0, R1, rm, k;
+    function ringDraw(k) {                    // source scaled by k about centre
+      wctx.translate(cx, cy);
+      wctx.scale(k * fit, k * fit);
+      wctx.drawImage(disc, -srcW / 2, -srcH / 2);
+    }
     /* Only the outer part of the disc is ever on screen — the frame bottom sits
        near r≈0.54 — and everything inside that is unlit pupil. Cover it with one
        draw instead of ~200 rings; the map is linear there anyway, since the
        angle wall has not started to climb. */
     var INNER = 0.40;
-    k = INNER / inv(INNER);
     wctx.save();
     wctx.beginPath(); wctx.arc(cx, cy, (INNER + over) * half, 0, TWO_PI); wctx.clip();
-    wctx.translate(cx, cy); wctx.scale(k, k); wctx.translate(-cx, -cy);
-    wctx.drawImage(disc, 0, 0);
+    ringDraw(INNER / inv(INNER));
     wctx.restore();
 
+    // Rings are drawn outward, each one's clip running a little past its outer
+    // edge so the next ring lands on top of solid pixels. Without that overlap
+    // two anti-aliased edges meet at every boundary, each covering half the
+    // pixel, and the shortfall shows up as a hairline ring on the image.
     for (i = Math.floor(INNER / SPAN * N); i < N; i++) {
       R0 = i / N * SPAN; R1 = (i + 1) / N * SPAN;
       rm = inv((R0 + R1) / 2);
@@ -229,10 +364,9 @@
       wctx.save();
       wctx.beginPath();
       wctx.arc(cx, cy, (R1 + over) * half, 0, TWO_PI);
-      if (i > 0) wctx.arc(cx, cy, R0 * half, 0, TWO_PI, true);
+      wctx.arc(cx, cy, R0 * half, 0, TWO_PI, true);
       wctx.clip("evenodd");
-      wctx.translate(cx, cy); wctx.scale(k, k); wctx.translate(-cx, -cy);
-      wctx.drawImage(disc, 0, 0);
+      ringDraw(k);
       wctx.restore();
     }
     return warpCanvas;
@@ -272,11 +406,12 @@
     var g = geom(), img = g.w.canvas || disc;
     ctx.save();
     // draw the disc unrotated about the orbiting pupil, so the sector on screen
-    // is the sector we have actually travelled to
+    // is the sector we have actually travelled to. The warped copy may be
+    // smaller than the source, so scale by its own width to cover the same area.
     ctx.translate(g.px, g.py);
-    var sc = discScale();
+    var sc = discScale() * (disc.width / img.width);
     ctx.scale(sc, sc);
-    ctx.drawImage(img, -disc.width / 2, -disc.height / 2);
+    ctx.drawImage(img, -img.width / 2, -img.height / 2);
     ctx.restore();
 
     drawSectors(g);
@@ -410,9 +545,10 @@
 
     ctx.save();
     ctx.translate(g.px, g.py);
-    var sc = discScale() * kMax;
+    var tImg = g.w.canvas || disc;
+    var sc = discScale() * kMax * (disc.width / tImg.width);
     ctx.scale(sc, sc);
-    ctx.drawImage(g.w.canvas || disc, -disc.width / 2, -disc.height / 2);
+    ctx.drawImage(tImg, -tImg.width / 2, -tImg.height / 2);
     ctx.restore();
 
     // a little shadow under the rolled leading edge gives the tent depth
@@ -741,7 +877,7 @@
   stage.addEventListener("mousemove", function (e) {
     var rect = canvas.getBoundingClientRect();
     hoverStruct = structureAt(e.clientX - rect.left, e.clientY - rect.top);
-    if (MASKS_ON && hoverStruct >= 0) {
+    if (MASKS_ON && NAME_ON && hoverStruct >= 0) {
       hoverLabel.textContent = STRUCTURES[hoverStruct].name;
       hoverLabel.style.left = e.clientX + "px";
       hoverLabel.style.top = e.clientY + "px";
@@ -792,10 +928,12 @@
     debugRings: function (on) { DEBUG_RINGS = on; },
     setMasks: function (on) { MASKS_ON = !!on; if (!MASKS_ON) hoverLabel.style.opacity = "0"; },
     getMasks: function () { return MASKS_ON; },
+    // show/hide the floating structure name without touching the glow
+    setNameLabel: function (on) { NAME_ON = !!on; if (!NAME_ON) hoverLabel.style.opacity = "0"; },
     // swap the displayed disc (per-case pathology imagery)
     setDiscImage: function (src) {
       loaded = false; hoverStruct = -1;
-      disc.onload = function () { loaded = true; warp.q = null; render(); };
+      disc.onload = function () { loaded = true; warp.q = null; glPrime(); render(); };
       disc.src = src + "?v=" + Date.now();
     },
     // per-case anatomy ring overrides; pass null/undefined to restore defaults

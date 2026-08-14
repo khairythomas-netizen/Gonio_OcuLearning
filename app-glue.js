@@ -172,6 +172,8 @@
       $("label-panel").style.display = mode === "label" ? "" : "none";
       $("grading-panel").style.display = mode === "grading" ? "" : "none";
       if (mode !== "explore") markList(-1);
+      // the quiz keeps the highlight but not the name, which would answer it
+      V.setNameLabel(mode !== "label");
       if (mode === "label") newLabelQuestion();
     });
   });
