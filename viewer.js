@@ -58,8 +58,8 @@
   var STRUCTURES = [
     // the iris takes in all the orange tissue; the ciliary band is only the dark
     // line between it and the scleral spur
-    { name: "Iris",                rIn: 0.54, rOut: 0.770 },
-    { name: "Ciliary body band",   rIn: 0.764, rOut: 0.786 },
+    { name: "Iris",                rIn: 0.54, rOut: 0.763 },
+    { name: "Ciliary body band",   rIn: 0.757, rOut: 0.786 },
     { name: "Scleral spur",        rIn: 0.786, rOut: 0.802 },
     { name: "Trabecular meshwork", rIn: 0.802, rOut: 0.858 },
     { name: "Schwalbe's line",     rIn: 0.846, rOut: 0.872 },
@@ -164,11 +164,9 @@
      dozens of full re-images and lock the page. Throttling to the frame means at
      most one per paint, and the image, masks and findings still move together
      because they all read this same cached profile. */
-  var warpDirty = true;
   function refreshWarp() {
-    var q = Math.round(tilt * 50) / 50;                  // quantised, so drags reuse
-    if (!warpDirty && warp.q === q) return;
-    warpDirty = false;
+    // quantised, so a drag reuses builds; warp.q is set to null to invalidate
+    var q = Math.round(tilt * 60) / 60;
     if (warp.q === q) return;
     var d = q * TILT_MAX_RAD, cd = Math.cos(d), sd = Math.sin(d);
     var rv = viewRadius();
@@ -265,6 +263,10 @@
     var hNow = ((Math.round(pos) % HOURS) + HOURS) % HOURS; hNow = hNow === 0 ? 12 : hNow;
     if (hNow !== lastHour) { lastHour = hNow; if (hourCb) hourCb(hNow); }
 
+    // the one place the tilt reprojection is rebuilt: once per painted frame,
+    // however many wheel or slider events arrived since the last one
+    refreshWarp();
+
     if (!loaded) return;
 
     var g = geom(), img = g.w.canvas || disc;
@@ -307,9 +309,21 @@
     var rIn = wr(g, s.rIn) * g.unit, rOut = wr(g, s.rOut) * g.unit;
     ctx.save();
     ctx.globalCompositeOperation = "lighter";
+    /* Hold the glow flat across the band and feather only at its edges. Peaking
+       in the middle and fading to nothing at both borders made a wide band like
+       the meshwork highlight far narrower than it really is — the lit area has
+       to show the whole structure, not just its centre. The feather is a fixed
+       fraction, so thin bands stay soft rather than turning into hard rings. */
     var grad = ctx.createRadialGradient(g.px, g.py, rIn, g.px, g.py, rOut);
+    var lit = "rgba(255,236,190," + GLOW_ALPHA + ")";
+    // The feather is a fixed width in radius, not a fixed fraction of the band,
+    // so a wide band like the meshwork lights almost to its own borders while a
+    // thin one like the spur still fades softly instead of ringing.
+    var f = 0.004 / Math.max(1e-4, s.rOut - s.rIn);
+    f = Math.max(0.05, Math.min(0.3, f));
     grad.addColorStop(0, "rgba(255,236,190,0)");
-    grad.addColorStop(0.5, "rgba(255,236,190," + GLOW_ALPHA + ")");
+    grad.addColorStop(f, lit);
+    grad.addColorStop(1 - f, lit);
     grad.addColorStop(1, "rgba(255,236,190,0)");
     ctx.fillStyle = grad;
     ctx.beginPath(); ctx.arc(g.px, g.py, rOut, 0, TWO_PI); ctx.fill();
