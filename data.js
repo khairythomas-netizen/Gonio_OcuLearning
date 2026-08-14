@@ -121,14 +121,13 @@ Gonio.CASES = [
     sectors: [{ type: "pigment", from: 4.6, to: 7.4, strength: 0.42 }]
   },
   {
-    id: "iris_processes", group: null, disc: "disc.png",
+    id: "iris_processes", group: null, disc: "atlas_iris_processes.png",
     name: "Iris processes (normal variant)",
     description: "Delicate, lacy uveal strands running from the iris root on to the meshwork — found in many normal angles. Unlike synechiae they are fine, they follow the concavity of the recess rather than bridging it, they do not obscure the structures beneath, and they move freely on indentation.",
     clockHours: makeClockHours(
       { insertion: "cb", contour: "flat", pigment: 1, pasBridge: false, vessels: false, sampaolesi: false }
     ),
-    sectors: [{ type: "processes", from: 1.5, to: 5.5, density: 13, seed: 21 },
-              { type: "processes", from: 7.5, to: 10.5, density: 10, seed: 44 }]
+    // the processes are in the atlas image itself, so nothing is drawn over it
   },
 
   /* --- Angle closure, graded --- */
@@ -187,20 +186,12 @@ Gonio.CASES = [
     sectors: [{ type: "pas", from: 0, to: 12, reach: 2, strength: 0.5 }]
   },
   {
-    id: "nvg", group: "Angle closure — mechanisms", disc: "disc.png",
+    id: "nvg", group: "Angle closure — mechanisms", disc: "atlas_nvg.png",
     name: "Neovascular glaucoma",
-    description: "Fine new vessels branching across the ciliary body band and scleral spur on to the meshwork. They are distinguished from normal angle vessels by following no radial or circumferential pattern and by crossing the spur. Their fibrovascular membrane is invisible but contracts, zipping the angle closed — here it has already produced synechial closure superonasally.",
+    description: "Fine new vessels branching across the ciliary body band and scleral spur on to the meshwork, seen here around 12, 4 and 9 o'clock. They are told from normal angle vessels by following no radial or circumferential pattern and by crossing the spur. The angle is still open: the fibrovascular membrane they carry is invisible, but as it contracts it zips the angle closed, so this is the stage at which to catch it.",
     clockHours: makeClockHours(
-      { insertion: "cb", contour: "flat", pigment: 1, pasBridge: false, vessels: true, sampaolesi: false },
-      { 11: { pasBridge: true, insertion: "schwalbe", closure: "synechial" },
-        12: { pasBridge: true, insertion: "schwalbe", closure: "synechial" },
-        1:  { insertion: "spur" } }
-    ),
-    sectors: [
-      { type: "pas", from: 10.6, to: 12.4, reach: 4 },
-      { type: "vessels", from: 8.5, to: 15.5, density: 10, seed: 91 },
-      { type: "vessels", from: 2.5, to: 5.5, density: 6, seed: 12 }
-    ]
+      { insertion: "cb", contour: "flat", pigment: 1, pasBridge: false, vessels: true, sampaolesi: false }
+    )
   },
   {
     id: "uveitic", group: "Angle closure — mechanisms", disc: "disc.png",
@@ -236,7 +227,7 @@ Gonio.CASES = [
     )
   },
   {
-    id: "pig_heavy", group: "Trabecular meshwork pigmentation", disc: "pig_heavy.png",
+    id: "pig_heavy", group: "Trabecular meshwork pigmentation", disc: "atlas_pig_heavy.png",
     name: "Heavy pigmentation",
     description: "Wide-open angle with heavy, dense pigment (3–4+) forming a smooth brown-black band that can obscure the posterior meshwork.",
     clockHours: makeClockHours(
@@ -244,24 +235,22 @@ Gonio.CASES = [
     )
   },
   {
-    id: "pig_inferior", group: "Trabecular meshwork pigmentation", disc: "pig_inferior.png",
+    id: "pig_inferior", group: "Trabecular meshwork pigmentation", disc: "atlas_pig_inferior.png",
     name: "Inferior-predominant",
     description: "Wide-open angle; pigment settles most heavily in the inferior meshwork from gravity and aqueous circulation — the usual physiologic pattern (in narrow angles pigment can instead be heavier superiorly).",
     clockHours: makeClockHours(
       { insertion: "cb", contour: "flat", pigment: 2, pasBridge: false, vessels: false, sampaolesi: false },
       { 4: { pigment: 3 }, 5: { pigment: 4 }, 6: { pigment: 4 }, 7: { pigment: 4 }, 8: { pigment: 3 } }
-    ),
-    sectors: [{ type: "pigment", from: 3.8, to: 8.2, strength: 0.8 }]
+    )   // the gradient is in the atlas image
   },
   {
-    id: "pig_sectoral", group: "Trabecular meshwork pigmentation", disc: "pig_sectoral.png",
+    id: "pig_sectoral", group: "Trabecular meshwork pigmentation", disc: "atlas_pig_sectoral.png",
     name: "Sectoral inferior",
     description: "Wide-open angle with a localized band of heavy inferior trabecular pigment.",
     clockHours: makeClockHours(
       { insertion: "cb", contour: "flat", pigment: 1, pasBridge: false, vessels: false, sampaolesi: false },
-      { 6: { pigment: 4 }, 7: { pigment: 4 } }
-    ),
-    sectors: [{ type: "pigment", from: 5.6, to: 7.4, strength: 1 }]
+      { 5: { pigment: 4 }, 6: { pigment: 4 }, 7: { pigment: 4 } }
+    )   // the patch is in the atlas image
   },
   {
     id: "melanocytosis", group: "Trabecular meshwork pigmentation", disc: "pig_heavy.png",
@@ -284,21 +273,17 @@ Gonio.CASES = [
     sectors: [{ type: "pale", from: 6.8, to: 10.2, strength: 0.9 }]
   },
   {
-    id: "pas", group: "Angle closure — mechanisms", disc: "pas.png",
+    id: "pas", group: "Angle closure — mechanisms", disc: "atlas_pas.png",
     name: "Peripheral anterior synechiae",
-    description: "Broad synechiae bridging the recess up on to the meshwork in the superior angle — the usual site after angle closure — with a separate discrete adhesion nasally. Travel round the clock to map their extent. Being adherent, they stay closed on tilting or indentation, which is what distinguishes them from appositional closure.",
+    description: "Broad tented synechiae bridging the recess up on to the meshwork at 12 o'clock — the usual site after angle closure — with a second group temporally around 9 to 10. Travel round the clock to map their extent, since that is what decides how much functioning angle is left. Being adherent, they stay closed on tilting or indentation, which is exactly what separates them from appositional closure.",
+    // matched to where the tents actually sit in the atlas image
     clockHours: makeClockHours(
       { insertion: "cb", contour: "flat", pigment: 1, pasBridge: false, vessels: false, sampaolesi: false },
-      { 11: { pasBridge: true, insertion: "schwalbe", closure: "synechial" },
-        12: { pasBridge: true, insertion: "schwalbe", closure: "synechial" },
-        1:  { pasBridge: true, insertion: "schwalbe", closure: "synechial" },
-        3:  { pasBridge: true, insertion: "tm_p",     closure: "synechial" },
-        10: { insertion: "spur" }, 2: { insertion: "spur" } }
-    ),
-    sectors: [
-      { type: "pas", from: 10.7, to: 13.3, reach: 4 },   // broad superior synechiae
-      { type: "pas", from: 2.75, to: 3.25, reach: 3 }    // discrete nasal adhesion
-    ]
+      { 12: { pasBridge: true, insertion: "schwalbe", closure: "synechial" },
+        9:  { pasBridge: true, insertion: "schwalbe", closure: "synechial" },
+        10: { pasBridge: true, insertion: "tm_p",     closure: "synechial" },
+        11: { insertion: "spur" }, 1: { insertion: "spur" } }
+    )
   },
   {
     id: "pigment_dispersion", group: "Material in the angle", disc: "pigment_dispersion.png",
@@ -343,13 +328,12 @@ Gonio.CASES = [
     sectors: [{ type: "dialysis", from: 7.6, to: 8.9, seed: 5 }]
   },
   {
-    id: "hyphema", group: "Trauma", disc: "disc.png",
+    id: "hyphema", group: "Trauma", disc: "atlas_hyphema.png",
     name: "Hyphema in the angle",
     description: "Blood in the anterior chamber settles into the inferior angle under gravity and lies on the trabecular meshwork. Small amounts are visible only on gonioscopy and rarely raise the pressure; a large hyphema filling the meshwork does. Small pigment balls may persist in the angle long after it clears.",
     clockHours: makeClockHours(
       { insertion: "cb", contour: "flat", pigment: 2, pasBridge: false, vessels: false, sampaolesi: false }
-    ),
-    sectors: [{ type: "blood", from: 4.2, to: 7.8, strength: 1 }]
+    )   // the layered blood is in the atlas image, pooled at 5 to 7
   },
 
   /* --- Developmental --- */
