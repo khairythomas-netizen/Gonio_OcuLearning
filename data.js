@@ -123,7 +123,7 @@ Gonio.CASES = [
   {
     id: "iris_processes", group: null, disc: "atlas_iris_processes.png",
     name: "Iris processes (normal variant)",
-    description: "Delicate, lacy uveal strands running from the iris root on to the meshwork — found in many normal angles. Unlike synechiae they are fine, they follow the concavity of the recess rather than bridging it, they do not obscure the structures beneath, and they move freely on indentation.",
+    description: "Delicate, lacy uveal strands running from the iris root on to the meshwork — found in many normal angles. Unlike synechiae they are fine, they follow the concavity of the recess rather than bridging it, and they do not obscure the structures beneath, so the angle still opens on indentation.",
     clockHours: makeClockHours(
       { insertion: "cb", contour: "flat", pigment: 1, pasBridge: false, vessels: false, sampaolesi: false }
     ),
@@ -158,8 +158,7 @@ Gonio.CASES = [
   {
     id: "closure_g3", group: "Angle closure — Shaffer grade", disc: "disc.png",
     name: "Grade 3 — Open",
-    masksDownTo: 1,          // keep the ciliary band labelable — this disc shows it
-    description: "An open angle at 20–35°, where the scleral spur is the deepest landmark you would routinely call (Shaffer 3); closure is impossible. Only a narrow strip of ciliary body face shows here — set it against the wide-open angle, where the band is unmistakably broad.",
+    description: "An open angle at 20–35° (Shaffer 3): the scleral spur is visible but the ciliary body band is not, and closure is impossible. That the band cannot be identified is what separates this from a wide-open angle — compare the two.",
     clockHours: makeClockHours(
       { insertion: "spur", contour: "flat", pigment: 1, pasBridge: false, vessels: false, sampaolesi: false }
     )
@@ -233,7 +232,7 @@ Gonio.CASES = [
   {
     id: "pig_inferior", group: "Trabecular meshwork pigmentation", disc: "atlas_pig_inferior.png",
     name: "Inferior-predominant",
-    description: "Wide-open angle; pigment settles most heavily in the inferior meshwork from gravity and aqueous circulation — the usual physiologic pattern (in narrow angles pigment can instead be heavier superiorly).",
+    description: "Wide-open angle; pigment settles most heavily in the inferior meshwork under gravity and with aqueous circulation, which is the usual physiologic pattern and the reason the inferior angle is normally the most pigmented.",
     clockHours: makeClockHours(
       { insertion: "cb", contour: "flat", pigment: 2, pasBridge: false, vessels: false, sampaolesi: false },
       { 4: { pigment: 3 }, 5: { pigment: 4 }, 6: { pigment: 4 }, 7: { pigment: 4 }, 8: { pigment: 3 } }
@@ -262,7 +261,7 @@ Gonio.CASES = [
   {
     id: "angle_recession", group: "Trauma", disc: "disc.png",
     name: "Angle recession",
-    description: "A post-traumatic tear in the face of the ciliary body, here involving one segment: an abnormally wide, pale ciliary body band and a deep recess, with torn iris processes and a whiter-looking scleral spur. Travel the full 360° — the extent of involvement is what matters, and glaucoma follows in about 9%.",
+    description: "A post-traumatic tear in the face of the ciliary body, here involving one segment: an abnormally wide, pale ciliary body band and a deep recess, with torn iris processes and a whiter-looking scleral spur. Travel the full 360° — the extent of involvement is what matters, and a minority of these eyes go on to glaucoma, often years after the injury.",
     clockHours: makeClockHours(
       { insertion: "cb", contour: "flat", pigment: 2, pasBridge: false, vessels: false, sampaolesi: false }
     ),
@@ -336,7 +335,7 @@ Gonio.CASES = [
   {
     id: "posterior_embryotoxon", group: "Developmental", disc: "disc.png",
     name: "Posterior embryotoxon",
-    description: "A prominent, anteriorly-displaced Schwalbe's line standing forward as a white ridge, most often inferiorly. A common normal variant; when florid and accompanied by prominent iris strands bridging to it, it becomes part of the Axenfeld-Rieger spectrum.",
+    description: "A prominent, anteriorly-displaced Schwalbe's line standing forward as a white ridge. A common normal variant on its own; when florid and accompanied by prominent iris strands bridging to it, it becomes part of the Axenfeld-Rieger spectrum.",
     clockHours: makeClockHours(
       { insertion: "cb", contour: "flat", pigment: 1, pasBridge: false, vessels: false, sampaolesi: false }
     )
