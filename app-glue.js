@@ -25,6 +25,7 @@
 
   var $ = function (id) { return document.getElementById(id); };
   var mode = "explore";
+  var maskable = true;          // masks are only calibrated for the normal angle
   var currentCase = Gonio.CASES[0];
 
   /* ---- pathology sidebar ---- */
@@ -63,6 +64,14 @@
     V.setDiscImage(currentCase.disc);        // swap to this case's disc
     V.setBaseStructures(currentCase.masks);  // per-disc mask baseline, if it needs one
     V.setSectors(currentCase.sectors);       // sectoral findings, fixed to the clock
+    /* The masks are calibrated against the normal angle's disc. On any other
+       case the bands sit differently — a narrow angle has the iris right up over
+       the meshwork — so the highlight would land on the wrong tissue and teach
+       the wrong thing. Masks are therefore offered only on the normal angle. */
+    maskable = (currentCase.id === "normal");
+    V.setMasks(maskable && maskSwitch.checked);
+    maskSwitch.disabled = !maskable;
+    maskSwitch.closest(".mask-toggle").classList.toggle("disabled", !maskable);
     applyVisibility();                       // show only the layers present in this case
     $("case-desc").textContent = currentCase.description;
     updateGrading();
@@ -126,7 +135,7 @@
 
   /* ---- anatomy-mask toggle ---- */
   var maskSwitch = $("mask-switch");
-  maskSwitch.addEventListener("change", function () { V.setMasks(maskSwitch.checked); });
+  maskSwitch.addEventListener("change", function () { V.setMasks(maskable && maskSwitch.checked); });
 
   /* ---- clock-hour dial: grab the outer knob and spin ---- */
   var svg = $("dial-svg"), rotor = $("dial-rotor"), knobNum = $("knob-num");

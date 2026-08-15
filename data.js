@@ -132,25 +132,25 @@ Gonio.CASES = [
 
   /* --- Angle closure, graded --- */
   {
-    id: "closure_g0", group: "Angle closure — Shaffer grade", disc: "disc.png",
+    id: "closure_g0", group: "Angle closure — Shaffer grade", disc: "atlas_closure_g0.png",
     name: "Grade 0 — Closed",
-    description: "Imagery for this case is still to come — the view shows the normal angle. Iridotrabecular contact all the way round — no angle structures visible (Shaffer 0). Tilting the lens will not open this view: indentation gonioscopy is needed to tell appositional closure from adherent synechial closure, and the worst case should be assumed until it does.",
+    description: "Iridotrabecular contact all the way round: the iris fills the angle and no structure can be identified (Shaffer 0, 0°). Tilting will not open this — indentation is what separates appositional contact from adherent synechial closure, and until it does the worst case is assumed.",
     clockHours: makeClockHours(
       { insertion: "closed", contour: "convex", pigment: 1, pasBridge: false, vessels: false, sampaolesi: false, closure: "appositional" }
     )
   },
   {
-    id: "closure_g1", group: "Angle closure — Shaffer grade", disc: "disc.png",
+    id: "closure_g1", group: "Angle closure — Shaffer grade", disc: "atlas_closure_g1.png",
     name: "Grade 1 — Very narrow",
-    description: "Imagery for this case is still to come — the view shows the normal angle. An extremely narrow angle — only Schwalbe's line is seen (Shaffer 1), the convex peripheral iris hiding everything behind it. Closure is probable. Tilt the lens toward the angle to see farther posteriorly and reveal the meshwork.",
+    description: "An extremely narrow angle (Shaffer 1, ≤10°): the iris rises to Schwalbe's line, leaving only a thin strip of it in view and hiding everything behind. Closure is probable. Tilt the lens toward the angle to see farther posteriorly.",
     clockHours: makeClockHours(
       { insertion: "schwalbe", contour: "convex", pigment: 1, pasBridge: false, vessels: false, sampaolesi: false, closure: "optical" }
     )
   },
   {
-    id: "closure_g2", group: "Angle closure — Shaffer grade", disc: "disc.png",
+    id: "closure_g2", group: "Angle closure — Shaffer grade", disc: "atlas_closure_g2.png",
     name: "Grade 2 — Narrow",
-    description: "Imagery for this case is still to come — the view shows the normal angle. A narrow angle — seen down to the pigmented meshwork but not the scleral spur (Shaffer 2); closure is possible. The spur and ciliary body band are hidden by the iris convexity, so tilting the lens brings them into view.",
+    description: "A narrow angle (Shaffer 2, 20°): visible down to the trabecular meshwork but not the scleral spur, so closure is possible. The spur and ciliary band are hidden by the iris convexity, which is why tilting brings them back.",
     clockHours: makeClockHours(
       { insertion: "tm_p", contour: "convex", pigment: 1, pasBridge: false, vessels: false, sampaolesi: false, closure: "optical" }
     )
@@ -165,11 +165,9 @@ Gonio.CASES = [
     )
   },
   {
-    id: "closure_g4", group: "Angle closure — Shaffer grade", disc: "disc.png",
-    // this disc's dark ciliary band sits further in, and is broader
-    masks: [{ rOut: 0.760 }, { rIn: 0.752 }],
+    id: "closure_g4", group: "Angle closure — Shaffer grade", disc: "atlas_closure_g4.png",
     name: "Grade 4 — Wide open",
-    description: "Imagery for this case is still to come — the view shows the normal angle. A wide-open angle — the full width of the ciliary body band is visible all the way round (Shaffer 4, 35–45°). Compare the band here with the narrower one in the normal angle: this breadth of ciliary body face is what marks the angle as wide open.",
+    description: "A wide-open angle (Shaffer 4, 35–45°): the full breadth of the ciliary body face is in view all the way round and closure is impossible. Set the width of that band against the normal angle — it is what marks an angle as wide open.",
     clockHours: makeClockHours(
       { insertion: "cb", contour: "flat", pigment: 1, pasBridge: false, vessels: false, sampaolesi: false }
     )
@@ -337,7 +335,7 @@ Gonio.CASES = [
   {
     id: "posterior_embryotoxon", group: "Developmental", disc: "disc.png",
     name: "Posterior embryotoxon",
-    description: "Imagery for this case is still to come — the view shows the normal angle. A prominent, anteriorly-displaced Schwalbe's line standing forward as a white ridge, most often inferiorly. A common normal variant; when florid and accompanied by prominent iris strands bridging to it, it becomes part of the Axenfeld-Rieger spectrum.",
+    description: "A prominent, anteriorly-displaced Schwalbe's line standing forward as a white ridge, most often inferiorly. A common normal variant; when florid and accompanied by prominent iris strands bridging to it, it becomes part of the Axenfeld-Rieger spectrum.",
     clockHours: makeClockHours(
       { insertion: "cb", contour: "flat", pigment: 1, pasBridge: false, vessels: false, sampaolesi: false }
     )
@@ -352,15 +350,6 @@ Gonio.CASES = [
       { insertion: "cb", contour: "flat", pigment: 2, pasBridge: false, vessels: false, sampaolesi: false }
     )
     // the finding is in the atlas image
-  },
-  {
-    id: "migs_stent", group: "After laser & surgery", disc: "disc.png",
-    name: "MIGS stent in the angle",
-    description: "A trabecular bypass stent seated across the meshwork nasally, where Schlemm's canal and the collector channels are richest. Gonioscopy confirms the device is correctly positioned in the meshwork and not buried in iris or sitting free in the chamber — the reason intraoperative and post-operative gonioscopy matters in the MIGS era.",
-    clockHours: makeClockHours(
-      { insertion: "cb", contour: "flat", pigment: 1, pasBridge: false, vessels: false, sampaolesi: false }
-    ),
-    sectors: [{ type: "stent", from: 2.75, to: 3.25 }]
   },
   {
     id: "postsurgical_pigment", group: "After laser & surgery", disc: "atlas_postsurgical_pigment.png",
