@@ -166,6 +166,7 @@ Gonio.CASES = [
   },
   {
     id: "closure_g4", group: "Angle closure — Shaffer grade", disc: "atlas_closure_g4.png",
+    masks: [{ rOut: 0.750 }, { rIn: 0.744 }],   // iris ends short of the band here
     name: "Grade 4 — Wide open",
     description: "A wide-open angle (Shaffer 4, 35–45°): the full breadth of the ciliary body face is in view all the way round and closure is impossible. Set the width of that band against the normal angle — it is what marks an angle as wide open.",
     clockHours: makeClockHours(
