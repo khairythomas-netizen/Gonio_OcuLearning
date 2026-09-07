@@ -74,6 +74,12 @@
     maskSwitch.closest(".mask-toggle").classList.toggle("disabled", !maskable);
     applyVisibility();                       // show only the layers present in this case
     $("case-desc").textContent = currentCase.description;
+    /* Some cases have no confirmed exemplar in the atlas, or carry a plate that
+       does not demonstrate what the case teaches. Say so plainly rather than
+       letting the picture stand as evidence. */
+    var note = $("case-note");
+    note.textContent = currentCase.needsMaterial || "";
+    note.hidden = !currentCase.needsMaterial;
     updateGrading();
   }
 

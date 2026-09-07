@@ -47,6 +47,11 @@ main { display: flex; gap: 30px; padding: 28px 34px 48px; align-items: flex-star
 select { font-family: var(--sans); font-size: 14px; padding: 8px 12px; border: 1px solid var(--line);
   border-radius: 9px; background: var(--surface); color: var(--ink); cursor: pointer; }
 #case-desc { color: var(--muted); font-size: 14px; margin: 0 0 14px; }
+/* shown when a case has no confirmed exemplar, or its plate does not
+   demonstrate the entity — the picture must not stand as evidence */
+.case-note { font-size: 13px; color: #7a5320; background: rgba(214, 150, 60, 0.13);
+  border: 1px solid rgba(214, 150, 60, 0.42); border-left-width: 3px;
+  border-radius: 8px; padding: 9px 12px; margin: 0 0 10px; }
 
 /* ---- stage header: title + mask toggle ---- */
 .stage-head { display: flex; align-items: center; justify-content: space-between; gap: 16px; }
