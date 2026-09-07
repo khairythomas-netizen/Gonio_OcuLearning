@@ -1,0 +1,40 @@
+/* Cook is bidirectional: raw -> perfect -> burnt */
+#cook{
+  -webkit-appearance:none;
+  appearance:none;
+  height:10px;
+  border-radius:999px;
+  outline:none;
+  background:linear-gradient(90deg,#e5484d 0%,#f59e0b 25%,#22c55e 50%,#f59e0b 75%,#e5484d 100%);
+  accent-color:#22c55e;
+}
+#cook::-webkit-slider-runnable-track{
+  height:10px;
+  border-radius:999px;
+  background:linear-gradient(90deg,#e5484d 0%,#f59e0b 25%,#22c55e 50%,#f59e0b 75%,#e5484d 100%);
+}
+#cook::-webkit-slider-thumb{
+  -webkit-appearance:none;
+  appearance:none;
+  width:24px;
+  height:24px;
+  margin-top:-7px;
+  border-radius:50%;
+  background:#fff;
+  border:3px solid #22c55e;
+  box-shadow:0 2px 9px rgba(0,0,0,.45);
+}
+#cook::-moz-range-track{
+  height:10px;
+  border-radius:999px;
+  background:linear-gradient(90deg,#e5484d 0%,#f59e0b 25%,#22c55e 50%,#f59e0b 75%,#e5484d 100%);
+}
+#cook::-moz-range-progress{background:transparent}
+#cook::-moz-range-thumb{
+  width:20px;
+  height:20px;
+  border-radius:50%;
+  background:#fff;
+  border:3px solid #22c55e;
+  box-shadow:0 2px 9px rgba(0,0,0,.45);
+}
