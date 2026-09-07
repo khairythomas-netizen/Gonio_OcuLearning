@@ -31,6 +31,8 @@ jobs:
         run: |
           mkdir -p _site/wing-scorecard
           cp wing-scorecard/index.html _site/wing-scorecard/index.html
+          cp wing-scorecard/cook-slider.css _site/wing-scorecard/cook-slider.css
+          sed -i 's#</head>#<link rel="stylesheet" href="cook-slider.css?v=2"></head>#' _site/wing-scorecard/index.html
           printf '<!doctype html><meta charset="utf-8"><meta http-equiv="refresh" content="0; url=wing-scorecard/"><title>Wing Scorecard</title><a href="wing-scorecard/">Open Wing Scorecard</a>' > _site/index.html
 
       - name: Configure Pages
